@@ -1,0 +1,17 @@
+﻿<Project>
+
+  <PropertyGroup>
+    <!-- See https://www.nuget.org/packages/JetBrains.ReSharper.SDK -->
+    <!-- Keep in sync with ProductVersion in gradle.properties -->
+    <SdkVersion>2024.1.0</SdkVersion>
+
+    <Title>SerializeReferenceDropdownIntegration</Title>
+    <Description>Integration for unity package: SerializeReferenceDropdown</Description>
+
+    <Authors>Alexey Taranov</Authors>
+    <Copyright>Copyright $([System.DateTime]::Now.Year) Maintainers of SerializeReferenceDropdownIntegration</Copyright>
+    <PackageTags>Rider pluhin</PackageTags>
+    <!-- TODO - icon, url something else....-->
+  </PropertyGroup>
+
+</Project>
