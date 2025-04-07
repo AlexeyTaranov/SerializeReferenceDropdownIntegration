@@ -2,11 +2,7 @@ using System.Collections.Generic;
 using JetBrains.Application.Parts;
 using JetBrains.ProjectModel;
 using JetBrains.ReSharper.Daemon.CodeInsights;
-using JetBrains.ReSharper.Psi;
-using JetBrains.ReSharper.Psi.CSharp.Tree;
-using JetBrains.ReSharper.Psi.Util;
 using JetBrains.Rider.Model;
-using JetBrains.Util;
 
 namespace ReSharperPlugin.SerializeReferenceDropdownIntegration;
 
@@ -23,7 +19,7 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
         var typeName = GetFullTypeName(highlightInfo);
         UnityBridge.OpenUnitySearchToolWindowWithType(typeName);
     }
-    
+
     private string GetFullTypeName(CodeInsightHighlightInfo highlightInfo)
     {
         //Need better solution and get full names everywhere
