@@ -136,7 +136,7 @@ public class DatabaseLoader
                     values.Add(prop.Value.ToString());
                 }
 
-                if (prop.Name == "searchToolIntegrationPort")
+                if (prop.Name == "IntegrationPort")
                 {
                     var port = int.Parse(prop.Value.ToString());
                     UnityBridge.portIndex = port;
