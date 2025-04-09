@@ -99,7 +99,7 @@ public class DatabaseLoader
         }
         catch (Exception e)
         {
-            MessageBox.ShowInfo($"Failed load database", $"{e}");
+            MessageBox.ShowInfo($"[SRD] Failed load database", $"{e}");
         }
 
         isRunningUpdate = false;
@@ -139,7 +139,6 @@ public class DatabaseLoader
                 if (prop.Name == "searchToolIntegrationPort")
                 {
                     var port = int.Parse(prop.Value.ToString());
-                    MessageBox.ShowInfo($"Assign port: {port}");
                     UnityBridge.portIndex = port;
                 }
 
