@@ -116,6 +116,7 @@ public class DatabaseLoader
             var writeTime = File.GetLastWriteTime(jsonPath);
             if (writeTime > lastDatabaseUpdate && isRunningUpdate == false)
             {
+                Log.DevInfo("New Database version");
                 var result = await UpdateDatabaseImpl(jsonPath);
                 if (IsAvailableDatabase == false && result)
                 {
@@ -135,13 +136,6 @@ public class DatabaseLoader
                 {
                     values.Add(prop.Value.ToString());
                 }
-
-                if (prop.Name == "IntegrationPort")
-                {
-                    var port = int.Parse(prop.Value.ToString());
-                    UnityBridge.portIndex = port;
-                }
-
                 FindObjectTypes(prop.Value, propertyName, ref values);
             }
         }

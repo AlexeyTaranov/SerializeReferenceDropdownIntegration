@@ -1,23 +1,37 @@
-using System.IO;
-using System.Net;
-using System.Net.Sockets;
+using System;
+using System.IO.Pipes;
+using System.Text;
+using JetBrains.Util;
 
 namespace ReSharperPlugin.SerializeReferenceDropdownIntegration;
 
 public static class UnityBridge
 {
-    public static int? portIndex;
+    private const string pipeName = "SerializeReferenceDropdownIntegration";
+    private static bool showOnce;
 
     public static void OpenUnitySearchToolWindowWithType(string typeName)
     {
-        //TODO: Run unity instance???
-        if (portIndex != null)
+        try
         {
-            using var client = new TcpClient(IPAddress.Loopback.ToString(), portIndex.Value);
-            using var stream = client.GetStream();
-            using var writer = new StreamWriter(stream) { AutoFlush = true };
+            using var client = new NamedPipeClientStream(".", pipeName, PipeDirection.Out);
+            client.Connect();
             var command = $"ShowSearchTypeWindow-{typeName}";
-            writer.WriteLine(command);
+            Log.DevInfo($"Send message: {command}");
+            var buffer = Encoding.UTF8.GetBytes(command);
+            client.Write(buffer, 0, buffer.Length);
+            client.Flush();
+            if (showOnce == false)
+            {
+                MessageBox.ShowInfo("Check Unity app :)", "SRD DEV");
+                showOnce = true;
+            }
+        }
+        catch (Exception e)
+        {
+            Log.DevError($"Send message failed: {e}");
+            Console.WriteLine(e);
+            throw;
         }
     }
 }

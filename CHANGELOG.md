@@ -6,3 +6,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## 1.0.0
 - Initial version
+
+## 1.1.0
+- Unity Bridge - NamedPipe backend

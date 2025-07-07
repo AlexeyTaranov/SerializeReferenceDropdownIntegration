@@ -33,7 +33,9 @@ public class ClassUsageAnalyzer : ElementProblemAnalyzer<IClassDeclaration>
 
     private async void LoadDatabase()
     {
+        Log.DevInfo("Start load database");
         var result = await databaseLoader.LoadDatabase();
+        Log.DevInfo($"End load database: {result}");
         if (result == LoadResult.NoError)
         {
             var body = $"Loaded - {databaseLoader.TypesCount.Count} types \n" +
@@ -68,11 +70,12 @@ public class ClassUsageAnalyzer : ElementProblemAnalyzer<IClassDeclaration>
         databaseLoader.TypesCount.TryGetValue(type, out var usageCount);
         shortTypeToFullType[clrName.ShortName] = type;
 
+        var tooltip = $"SerializeReferenceDropdown: '{clrName.ShortName}' {usageCount} - usages in project";
         consumer.AddHighlighting(
             new CodeInsightsHighlighting(
                 element.GetNameDocumentRange(),
                 displayText: $"SRD: {usageCount} usages",
-                tooltipText: $"SerializeReferenceDropdown: {usageCount} - usages in project",
+                tooltipText: tooltip,
                 moreText: String.Empty,
                 codeInsightsProvider,
                 element.DeclaredElement, null));
