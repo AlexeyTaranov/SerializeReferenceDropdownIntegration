@@ -18,6 +18,7 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
     {
         var typeName = GetFullTypeName(highlightInfo);
         UnityBridge.OpenUnitySearchToolWindowWithType(typeName);
+        WindowFocusSwitch.SwitchToUnityApplication();
     }
 
     private string GetFullTypeName(CodeInsightHighlightInfo highlightInfo)
