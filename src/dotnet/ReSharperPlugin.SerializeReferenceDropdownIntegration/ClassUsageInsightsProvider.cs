@@ -14,7 +14,7 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
         return true;
     }
 
-    public void OnClick(CodeInsightHighlightInfo highlightInfo, ISolution solution)
+    public void OnClick(CodeInsightHighlightInfo highlightInfo, ISolution solution,CodeInsightsClickInfo clickInfo)
     {
         var typeName = GetFullTypeName(highlightInfo);
         UnityBridge.OpenUnitySearchToolWindowWithType(typeName);
