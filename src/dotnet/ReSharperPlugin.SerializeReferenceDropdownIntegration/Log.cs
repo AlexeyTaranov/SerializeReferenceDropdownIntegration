@@ -1,5 +1,5 @@
+using System;
 using System.Diagnostics;
-using JetBrains.Util;
 
 namespace ReSharperPlugin.SerializeReferenceDropdownIntegration;
 
@@ -8,12 +8,12 @@ public class Log
     [Conditional("DEVLOG")]
     public static void DevInfo(string data)
     {
-        MessageBox.ShowInfo(data, "SRD DEV");
+        Console.WriteLine($"SRD DEV: {data}");
     }
     
     [Conditional("DEVLOG")]
     public static void DevError(string data)
     {
-        MessageBox.ShowInfo(data, "SRD DEV");
+        Console.WriteLine($"SRD DEV ERROR: {data}");
     }
 }
