@@ -63,6 +63,19 @@ public class ClassUsageAnalyzer : ElementProblemAnalyzer<IClassDeclaration>
             return;
         }
 
+        var nonReferenceType = element.IsStatic || element.IsAbstract;
+        if (nonReferenceType)
+        {
+            return;
+        }
+
+        var superClassNames = element.DeclaredElement.GetAllSuperClasses().Select(t => t.GetClrName());
+        var inheritedFromUnityObject = superClassNames.Any(t => t.FullName == "UnityEngine.Object");
+        if (inheritedFromUnityObject)
+        {
+            return;
+        }
+
         var clrName = element.DeclaredElement.GetClrName();
         var name = clrName.FullName;
         var asmName = element.GetPsiModule().ContainingProjectModule.Name;
