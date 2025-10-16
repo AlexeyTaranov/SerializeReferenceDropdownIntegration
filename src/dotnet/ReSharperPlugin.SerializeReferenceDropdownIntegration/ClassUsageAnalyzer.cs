@@ -39,7 +39,7 @@ public class ClassUsageAnalyzer : ElementProblemAnalyzer<IClassDeclaration>
         if (result == LoadResult.NoError)
         {
             var body = $"Loaded - {databaseLoader.TypesCount.Count} types \n" +
-                       $"Last refresh: {databaseLoader.LastDatabaseUpdate}";
+                       $"Last refresh: {databaseLoader.DatabaseLastWriteTime}";
             userNotifications.CreateNotification(lifetime, NotificationSeverity.INFO,
                 "SRD - Database loaded",
                 body, closeAfterExecution: true);

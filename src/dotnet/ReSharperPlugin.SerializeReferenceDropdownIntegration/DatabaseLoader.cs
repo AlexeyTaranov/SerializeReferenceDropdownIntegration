@@ -26,8 +26,8 @@ public class DatabaseLoader
 
     private readonly ConcurrentDictionary<string, int> typesCount = new();
 
-    private static bool isRunningUpdate;
     private DateTime lastDatabaseUpdate;
+    private static bool isRunningUpdate;
 
     public DatabaseLoader(ISolution solution, Lifetime lifetime)
     {
@@ -37,7 +37,8 @@ public class DatabaseLoader
 
     public IReadOnlyDictionary<string, int> TypesCount => typesCount;
     public bool IsAvailableDatabase { get; private set; }
-    public DateTime LastDatabaseUpdate => lastDatabaseUpdate;
+    public DateTime DatabaseLastWriteTime { get; private set; }
+
 
     public async Task<LoadResult> LoadDatabase()
     {
@@ -94,6 +95,7 @@ public class DatabaseLoader
         try
         {
             lastDatabaseUpdate = DateTime.Now;
+            DatabaseLastWriteTime = File.GetLastWriteTime(jsonPath);
             await Task.Run(() => FillTypesFromPath(jsonPath), lifetime);
             ok = true;
         }
@@ -136,6 +138,7 @@ public class DatabaseLoader
                 {
                     values.Add(prop.Value.ToString());
                 }
+
                 FindObjectTypes(prop.Value, propertyName, ref values);
             }
         }
