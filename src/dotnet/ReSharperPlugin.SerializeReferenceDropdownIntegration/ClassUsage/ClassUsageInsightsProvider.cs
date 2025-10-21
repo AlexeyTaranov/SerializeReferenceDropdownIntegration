@@ -4,7 +4,7 @@ using JetBrains.ProjectModel;
 using JetBrains.ReSharper.Daemon.CodeInsights;
 using JetBrains.Rider.Model;
 
-namespace ReSharperPlugin.SerializeReferenceDropdownIntegration;
+namespace ReSharperPlugin.SerializeReferenceDropdownIntegration.ClassUsage;
 
 [SolutionComponent(Instantiation.ContainerAsyncPrimaryThread)]
 public class ClassUsageInsightsProvider : ICodeInsightsProvider

@@ -1,15 +1,17 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using JetBrains.Application.DataContext;
 using JetBrains.Application.Notifications;
+using JetBrains.Lifetimes;
 using JetBrains.ProjectModel;
 using JetBrains.ReSharper.Daemon.CodeInsights;
 using JetBrains.ReSharper.Feature.Services.Daemon;
 using JetBrains.ReSharper.Psi.CSharp.Tree;
 using JetBrains.ReSharper.Psi.Tree;
-using JetBrains.Lifetimes;
+using JetBrains.ReSharper.Psi.Util;
 
-namespace ReSharperPlugin.SerializeReferenceDropdownIntegration;
+namespace ReSharperPlugin.SerializeReferenceDropdownIntegration.ClassUsage;
 
 [ElementProblemAnalyzer(typeof(IClassDeclaration))]
 public class ClassUsageAnalyzer : ElementProblemAnalyzer<IClassDeclaration>
@@ -40,9 +42,17 @@ public class ClassUsageAnalyzer : ElementProblemAnalyzer<IClassDeclaration>
         {
             var body = $"Loaded - {databaseLoader.TypesCount.Count} types \n" +
                        $"Last refresh: {databaseLoader.DatabaseLastWriteTime}";
+
             userNotifications.CreateNotification(lifetime, NotificationSeverity.INFO,
                 "SRD - Database loaded",
                 body, closeAfterExecution: true);
+
+            if ((DateTime.Now - databaseLoader.DatabaseLastWriteTime).Days > 1)
+            {
+                userNotifications.CreateNotification(lifetime, NotificationSeverity.WARNING,
+                    "SRD - Database need refresh?",
+                    body, closeAfterExecution: true);
+            }
         }
 
         if (result == LoadResult.NoDatabaseFile)
