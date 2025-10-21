@@ -1,20 +1,23 @@
 using System;
 using System.IO.Pipes;
 using System.Text;
+using JetBrains.Application.Parts;
+using JetBrains.ProjectModel;
 using JetBrains.Util;
 
-namespace ReSharperPlugin.SerializeReferenceDropdownIntegration;
+namespace ReSharperPlugin.SerializeReferenceDropdownIntegration.ToUnity;
 
-public static class UnityBridge
+[SolutionComponent(Instantiation.DemandAnyThreadSafe)]
+public class ToUnitySrdPipe
 {
-    private const string pipeName = "SerializeReferenceDropdownIntegration";
-    private static bool showOnce;
+    private const string PipeName = "SerializeReferenceDropdownIntegration";
+    private bool showOnce;
 
-    public static void OpenUnitySearchToolWindowWithType(string typeName)
+    public void OpenUnitySearchToolWindowWithType(string typeName)
     {
         try
         {
-            using var client = new NamedPipeClientStream(".", pipeName, PipeDirection.Out);
+            using var client = new NamedPipeClientStream(".", PipeName, PipeDirection.Out);
             client.Connect();
             var command = $"ShowSearchTypeWindow-{typeName}";
             Log.DevInfo($"Send message: {command}");
@@ -23,14 +26,13 @@ public static class UnityBridge
             client.Flush();
             if (showOnce == false)
             {
-                MessageBox.ShowInfo("Check Unity app :)", "SRD DEV");
+                MessageBox.ShowInfo("Check Unity window:)", "SRD DEV");
                 showOnce = true;
             }
         }
         catch (Exception e)
         {
             Log.DevError($"Send message failed: {e}");
-            Console.WriteLine(e);
             throw;
         }
     }

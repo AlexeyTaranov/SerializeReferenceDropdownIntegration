@@ -3,6 +3,8 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
+using JetBrains.Application.Notifications;
+using JetBrains.Application.Parts;
 using JetBrains.Lifetimes;
 using JetBrains.ProjectModel;
 using JetBrains.Util;
@@ -10,37 +12,89 @@ using Newtonsoft.Json.Linq;
 
 namespace ReSharperPlugin.SerializeReferenceDropdownIntegration;
 
-public enum LoadResult
+[SolutionComponent(Instantiation.DemandAnyThreadSafe)]
+public class UnitySrdDatabaseLoader
 {
-    NoError,
-    NoDatabaseFile,
-    NoSRDPackage,
-    ErrorLoading
-}
+    private enum LoadResult
+    {
+        NoError,
+        NoDatabaseFile,
+        NoSRDPackage,
+        ErrorLoading
+    }
 
-public class DatabaseLoader
-{
-    private readonly string databaseJsonName = "SerializeReference_ToolSearch_DataCacheFile.json";
-    private readonly ISolution solution;
+    private const string DatabaseJsonName = "SerializeReference_ToolSearch_DataCacheFile.json";
+
+    private readonly UserNotifications userNotifications;
     private readonly Lifetime lifetime;
+    private readonly ISolution solution;
 
     private readonly ConcurrentDictionary<string, int> typesCount = new();
 
     private DateTime lastDatabaseUpdate;
-    private static bool isRunningUpdate;
-
-    public DatabaseLoader(ISolution solution, Lifetime lifetime)
-    {
-        this.solution = solution;
-        this.lifetime = lifetime;
-    }
+    private DateTime lastDatabaseWriteTime;
+    private bool isRunningUpdate;
 
     public IReadOnlyDictionary<string, int> TypesCount => typesCount;
     public bool IsAvailableDatabase { get; private set; }
-    public DateTime DatabaseLastWriteTime { get; private set; }
+
+    public UnitySrdDatabaseLoader(UserNotifications userNotifications, Lifetime lifetime, ISolution solution,
+        UnityProjectDetector unityProjectDetector)
+    {
+        this.userNotifications = userNotifications;
+        this.lifetime = lifetime;
+        this.solution = solution;
+        if (unityProjectDetector.IsUnityProject())
+        {
+            LoadDatabase();
+        }
+    }
+
+    private string GetDatabaseJsonPath()
+    {
+        var jsonPath = Path.Combine(solution.SolutionDirectory.FullPath, "Library", DatabaseJsonName);
+        return jsonPath;
+    }
+
+    private string GetPackagesJsonPath()
+    {
+        var jsonPath = Path.Combine(solution.SolutionDirectory.FullPath, "Packages", "packages-lock.json");
+        return jsonPath;
+    }
+
+    private async void LoadDatabase()
+    {
+        Log.DevInfo("Start load database");
+        var result = await LoadDatabaseImpl();
+        if (result == LoadResult.NoError)
+        {
+            var body = $"Loaded - {TypesCount.Count} types \n" +
+                       $"Last refresh: {lastDatabaseWriteTime}";
+
+            userNotifications.CreateNotification(lifetime, NotificationSeverity.INFO,
+                "SRD - Database loaded",
+                body, closeAfterExecution: true);
+
+            if ((DateTime.Now - lastDatabaseWriteTime).Days > 1)
+            {
+                userNotifications.CreateNotification(lifetime, NotificationSeverity.WARNING,
+                    "SRD - Database need refresh?",
+                    body, closeAfterExecution: true);
+            }
+        }
+
+        if (result == LoadResult.NoDatabaseFile)
+        {
+            userNotifications.CreateNotification(lifetime, NotificationSeverity.WARNING,
+                "SRD - No Database File",
+                "Need generate database file", closeAfterExecution: true);
+        }
+
+        Log.DevInfo($"End load database: {result}");
+    }
 
 
-    public async Task<LoadResult> LoadDatabase()
+    private async Task<LoadResult> LoadDatabaseImpl()
     {
         var jsonPath = GetDatabaseJsonPath();
         if (File.Exists(jsonPath) == false)
@@ -76,16 +130,11 @@ public class DatabaseLoader
         foreach (var allType in allTypes)
         {
             var array = allType.Split(',');
-            var type = MakeType(array[0], array[1]);
+            var type = TypeExtensions.MakeType(array[0], array[1]);
             typesCount.TryGetValue(type, out var value);
             value++;
             typesCount[type] = value;
         }
-    }
-
-    public static string MakeType(string typeName, string asmName)
-    {
-        return $"{typeName},{asmName}".Replace(" ", "");
     }
 
     private async Task<bool> UpdateDatabaseImpl(string jsonPath)
@@ -95,7 +144,7 @@ public class DatabaseLoader
         try
         {
             lastDatabaseUpdate = DateTime.Now;
-            DatabaseLastWriteTime = File.GetLastWriteTime(jsonPath);
+            lastDatabaseWriteTime = File.GetLastWriteTime(jsonPath);
             await Task.Run(() => FillTypesFromPath(jsonPath), lifetime);
             ok = true;
         }
@@ -110,7 +159,7 @@ public class DatabaseLoader
 
 
     //TODO: make better bg update
-    public async void UpdateDatabaseBackground()
+    public async void RefreshDatabase()
     {
         var jsonPath = GetDatabaseJsonPath();
         if (File.Exists(jsonPath))
@@ -128,7 +177,7 @@ public class DatabaseLoader
         }
     }
 
-    private static void FindObjectTypes(JToken token, string propertyName, ref List<string> values)
+    private void FindObjectTypes(JToken token, string propertyName, ref List<string> values)
     {
         if (token.Type == JTokenType.Object)
         {
@@ -149,17 +198,5 @@ public class DatabaseLoader
                 FindObjectTypes(item, propertyName, ref values);
             }
         }
-    }
-
-    private string GetDatabaseJsonPath()
-    {
-        var jsonPath = Path.Combine(solution.SolutionDirectory.FullPath, "Library", databaseJsonName);
-        return jsonPath;
-    }
-
-    private string GetPackagesJsonPath()
-    {
-        var jsonPath = Path.Combine(solution.SolutionDirectory.FullPath, "Packages", "packages-lock.json");
-        return jsonPath;
     }
 }
