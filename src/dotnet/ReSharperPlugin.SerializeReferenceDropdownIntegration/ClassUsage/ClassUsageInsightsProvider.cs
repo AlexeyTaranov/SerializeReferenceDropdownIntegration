@@ -7,7 +7,7 @@ using ReSharperPlugin.SerializeReferenceDropdownIntegration.ToUnity;
 
 namespace ReSharperPlugin.SerializeReferenceDropdownIntegration.ClassUsage;
 
-[SolutionComponent(Instantiation.ContainerAsyncPrimaryThread)]
+[SolutionComponent(Instantiation.DemandAnyThreadSafe)]
 public class ClassUsageInsightsProvider : ICodeInsightsProvider
 {
     private readonly ToUnitySrdPipe toUnitySrdPipe;

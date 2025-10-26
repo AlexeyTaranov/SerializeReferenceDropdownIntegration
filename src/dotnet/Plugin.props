@@ -14,4 +14,9 @@
     <!-- TODO - icon, url something else....-->
   </PropertyGroup>
 
+    <ItemGroup>
+        <PackageReference Include="JetBrains.ReSharper.SDK" Version="$(SdkVersion)" />
+        <PackageReference Include="JetBrains.Rider.SDK" Version="$(SdkVersion)" />
+    </ItemGroup>
+
 </Project>

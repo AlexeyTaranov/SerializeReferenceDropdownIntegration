@@ -10,7 +10,7 @@ using JetBrains.ProjectModel;
 using JetBrains.Util;
 using Newtonsoft.Json.Linq;
 
-namespace ReSharperPlugin.SerializeReferenceDropdownIntegration;
+namespace ReSharperPlugin.SerializeReferenceDropdownIntegration.Unity.SRD;
 
 [SolutionComponent(Instantiation.DemandAnyThreadSafe)]
 public class UnitySrdDatabaseLoader
@@ -22,7 +22,7 @@ public class UnitySrdDatabaseLoader
         NoSRDPackage,
         ErrorLoading
     }
-
+    
     private const string DatabaseJsonName = "SerializeReference_ToolSearch_DataCacheFile.json";
 
     private readonly UserNotifications userNotifications;
@@ -38,16 +38,11 @@ public class UnitySrdDatabaseLoader
     public IReadOnlyDictionary<string, int> TypesCount => typesCount;
     public bool IsAvailableDatabase { get; private set; }
 
-    public UnitySrdDatabaseLoader(UserNotifications userNotifications, Lifetime lifetime, ISolution solution,
-        UnityProjectDetector unityProjectDetector)
+    public UnitySrdDatabaseLoader(UserNotifications userNotifications, Lifetime lifetime, ISolution solution)
     {
         this.userNotifications = userNotifications;
         this.lifetime = lifetime;
         this.solution = solution;
-        if (unityProjectDetector.IsUnityProject())
-        {
-            LoadDatabase();
-        }
     }
 
     private string GetDatabaseJsonPath()
