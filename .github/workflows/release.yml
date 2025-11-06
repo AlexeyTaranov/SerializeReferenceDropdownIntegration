@@ -39,10 +39,9 @@ jobs:
       # 🔹 Determine new version and changelog
       - name: Determine new version and changelog
         id: changelog
-        uses: google-github-actions/release-please-action@v4
+        uses: googleapis/release-please-action@v4
         with:
           release-type: simple
-          package-name: rider-plugin
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -80,7 +79,18 @@ jobs:
           echo "✅ Updated version tags in plugin.xml:"
           grep "<version>" "$XML_FILE" || echo "(none found)"
 
-      # 🔹 Optionally update CHANGELOG.md (release-please does this automatically)
+      # 🔹 Build the plugin (before PR)
+      - name: Build plugin
+        if: ${{ steps.changelog.outputs.release_created == 'true' }}
+        run: ./gradlew buildPlugin
+
+      # 🔹 Upload ZIP as artifact (optional, for PR preview)
+      - name: Upload plugin artifact
+        if: ${{ steps.changelog.outputs.release_created == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-build
+          path: build/distributions/*.zip
 
       # 🔹 Create pull request with version bump
       - name: Create Pull Request
@@ -96,6 +106,8 @@ jobs:
             - gradle.properties version
             - plugin.xml version
             - CHANGELOG.md
+
+            The plugin ZIP has been built and is attached as an artifact.
           labels: release, version-bump
           base: main
           delete-branch: true
