@@ -44,7 +44,7 @@ public class UnityProjectDetector
         }
         catch (Exception e)
         {
-            Log.DevError(e.ToString());
+            //
         }
 
         return false;
