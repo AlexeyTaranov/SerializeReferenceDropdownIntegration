@@ -36,7 +36,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      # 🔹 Determine new version and changelog
+      # 🔹 Determine new version (simple, ignores commit messages)
       - name: Determine new version and changelog
         id: changelog
         uses: googleapis/release-please-action@v4
@@ -54,9 +54,8 @@ jobs:
         if: ${{ steps.changelog.outputs.release_created == 'true' }}
         run: |
           TAG_NAME="${{ steps.changelog.outputs.tag_name }}"
-          VERSION="${TAG_NAME#v}"  # remove leading 'v'
+          VERSION="${TAG_NAME#v}"
           sed -i.bak "s/^version=.*/version=${VERSION}/" gradle.properties
-          echo "✅ Updated gradle.properties to version ${VERSION}"
 
       # 🔹 Update plugin.xml version
       - name: Update plugin.xml
@@ -65,26 +64,28 @@ jobs:
           TAG_NAME="${{ steps.changelog.outputs.tag_name }}"
           VERSION="${TAG_NAME#v}"
           XML_FILE="src/rider/main/resources/META-INF/plugin.xml"
-          echo "🧩 Updating ${XML_FILE} to version ${VERSION}"
-
           awk -v ver="$VERSION" '
             /<!--/ { in_comment=1 }
             /-->/ { in_comment=0 }
-            !in_comment {
-              gsub(/<version>[^<]+<\/version>/, "<version>" ver "</version>")
-            }
+            !in_comment { gsub(/<version>[^<]+<\/version>/, "<version>" ver "</version>") }
             { print }
           ' "$XML_FILE" > "$XML_FILE.tmp" && mv "$XML_FILE.tmp" "$XML_FILE"
 
-          echo "✅ Updated version tags in plugin.xml:"
-          grep "<version>" "$XML_FILE" || echo "(none found)"
+      # 🔹 Commit updated files
+      - name: Commit updated version files
+        if: ${{ steps.changelog.outputs.release_created == 'true' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add gradle.properties src/rider/main/resources/META-INF/plugin.xml CHANGELOG.md
+          git commit -m "chore(release): bump version to ${{ steps.changelog.outputs.tag_name }}" || echo "No changes to commit"
 
-      # 🔹 Build the plugin (before PR)
+      # 🔹 Build plugin
       - name: Build plugin
         if: ${{ steps.changelog.outputs.release_created == 'true' }}
         run: ./gradlew buildPlugin
 
-      # 🔹 Upload ZIP as artifact (optional, for PR preview)
+      # 🔹 Upload plugin artifact (optional)
       - name: Upload plugin artifact
         if: ${{ steps.changelog.outputs.release_created == 'true' }}
         uses: actions/upload-artifact@v4
@@ -92,12 +93,11 @@ jobs:
           name: plugin-build
           path: build/distributions/*.zip
 
-      # 🔹 Create pull request with version bump
+      # 🔹 Create Pull Request
       - name: Create Pull Request
         if: ${{ steps.changelog.outputs.release_created == 'true' }}
         uses: peter-evans/create-pull-request@v5
         with:
-          commit-message: "chore(release): bump version to ${{ steps.changelog.outputs.tag_name }}"
           branch: "release-bump-${{ steps.changelog.outputs.tag_name }}"
           title: "Bump plugin version to ${{ steps.changelog.outputs.tag_name }}"
           body: |
