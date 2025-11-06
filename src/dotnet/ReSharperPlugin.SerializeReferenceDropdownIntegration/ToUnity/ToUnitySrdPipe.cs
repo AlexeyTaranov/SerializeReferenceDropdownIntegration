@@ -20,7 +20,6 @@ public class ToUnitySrdPipe
             using var client = new NamedPipeClientStream(".", PipeName, PipeDirection.Out);
             client.Connect();
             var command = $"ShowSearchTypeWindow-{typeName}";
-            Log.DevInfo($"Send message: {command}");
             var buffer = Encoding.UTF8.GetBytes(command);
             client.Write(buffer, 0, buffer.Length);
             client.Flush();
@@ -32,8 +31,7 @@ public class ToUnitySrdPipe
         }
         catch (Exception e)
         {
-            Log.DevError($"Send message failed: {e}");
-            throw;
+            //
         }
     }
 }

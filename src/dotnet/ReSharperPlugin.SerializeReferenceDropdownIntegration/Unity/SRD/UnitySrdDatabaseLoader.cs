@@ -59,7 +59,6 @@ public class UnitySrdDatabaseLoader
 
     private async void LoadDatabase()
     {
-        Log.DevInfo("Start load database");
         var result = await LoadDatabaseImpl();
         if (result == LoadResult.NoError)
         {
@@ -84,8 +83,6 @@ public class UnitySrdDatabaseLoader
                 "SRD - No Database File",
                 "Need generate database file", closeAfterExecution: true);
         }
-
-        Log.DevInfo($"End load database: {result}");
     }
 
 
@@ -162,7 +159,6 @@ public class UnitySrdDatabaseLoader
             var writeTime = File.GetLastWriteTime(jsonPath);
             if (writeTime > lastDatabaseUpdate && isRunningUpdate == false)
             {
-                Log.DevInfo("New Database version");
                 var result = await UpdateDatabaseImpl(jsonPath);
                 if (IsAvailableDatabase == false && result)
                 {
