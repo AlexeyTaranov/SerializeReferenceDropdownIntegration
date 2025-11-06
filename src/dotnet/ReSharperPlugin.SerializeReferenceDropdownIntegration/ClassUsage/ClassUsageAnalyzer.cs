@@ -50,9 +50,17 @@ public class ClassUsageAnalyzer : ElementProblemAnalyzer<IClassDeclaration>
                 return;
             }
 
-            var superClassNames = element.DeclaredElement.GetAllSuperClasses().Select(t => t.GetClrName());
+            var superClassNames = element.DeclaredElement.GetAllSuperClasses().Select(t => t.GetClrName()).ToArray();
             var inheritedFromUnityObject = superClassNames.Any(t => t.FullName == "UnityEngine.Object");
             if (inheritedFromUnityObject)
+            {
+                return;
+            }
+
+            var noParentClass = superClassNames.Length == 1 && superClassNames.First().FullName == "System.Object";
+
+            var anySuperClass = element.SuperTypeUsageNodes.Any(); 
+            if (noParentClass && anySuperClass == false)
             {
                 return;
             }
