@@ -1,22 +1,26 @@
-name: Release Rider Plugin
+name: Build & Release Rider Plugin
 
 on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
 
 permissions:
-  contents: write  # allows committing and creating releases
+  contents: write
 
 jobs:
-  release:
+  build:
     runs-on: ubuntu-latest
+    name: Build Plugin (PR / Main)
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # needed for release-please
+          fetch-depth: 0
 
       - name: Set up JDK
         uses: actions/setup-java@v4
@@ -34,7 +38,33 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      # 🧠 Detect version bump and changelog
+      - name: Build plugin
+        run: ./gradlew buildPlugin
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-build
+          path: build/distributions/*.zip
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    name: Release on Main
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
       - name: Determine new version and changelog
         id: changelog
         uses: release-please/action@v4
@@ -55,17 +85,15 @@ jobs:
         if: ${{ steps.changelog.outputs.release_created != 'true' }}
         run: echo "No new version to release."
 
-      # 🧾 Update gradle.properties version
       - name: Update gradle.properties version
         if: ${{ steps.changelog.outputs.release_created == 'true' }}
         run: |
           TAG_NAME="${{ steps.changelog.outputs.tag_name }}"
-          VERSION="${TAG_NAME#v}"  # remove leading 'v'
+          VERSION="${TAG_NAME#v}"
           sed -i.bak "s/^version=.*/version=${VERSION}/" gradle.properties
           echo "✅ Updated gradle.properties to version ${VERSION}"
 
-      # 🧩 Update plugin.xml version (safe for comments and multiple tags)
-      - name: Update plugin.xml version tags
+      - name: Update plugin.xml version
         if: ${{ steps.changelog.outputs.release_created == 'true' }}
         run: |
           TAG_NAME="${{ steps.changelog.outputs.tag_name }}"
@@ -82,15 +110,12 @@ jobs:
             { print }
           ' "$XML_FILE" > "$XML_FILE.tmp" && mv "$XML_FILE.tmp" "$XML_FILE"
 
-          echo "✅ Updated version tags in plugin.xml:"
           grep "<version>" "$XML_FILE" || echo "(none found)"
 
-      # 🏗️ Build Rider plugin
       - name: Build plugin
         if: ${{ steps.changelog.outputs.release_created == 'true' }}
         run: ./gradlew buildPlugin
 
-      # 💾 Commit updated version and changelog
       - name: Commit updated version and changelog
         if: ${{ steps.changelog.outputs.release_created == 'true' }}
         run: |
@@ -100,7 +125,6 @@ jobs:
           git commit -m "chore(release): update version to ${{ steps.changelog.outputs.tag_name }}"
           git push
 
-      # 🚀 Create GitHub Release with built ZIP
       - name: Create GitHub Release
         if: ${{ steps.changelog.outputs.release_created == 'true' }}
         uses: softprops/action-gh-release@v2
