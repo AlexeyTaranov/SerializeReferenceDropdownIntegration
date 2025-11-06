@@ -3,22 +3,33 @@ using JetBrains.Application.Parts;
 using JetBrains.ProjectModel;
 using JetBrains.ReSharper.Daemon.CodeInsights;
 using JetBrains.Rider.Model;
+using ReSharperPlugin.SerializeReferenceDropdownIntegration.ToUnity;
 
-namespace ReSharperPlugin.SerializeReferenceDropdownIntegration;
+namespace ReSharperPlugin.SerializeReferenceDropdownIntegration.ClassUsage;
 
-[SolutionComponent(Instantiation.ContainerAsyncPrimaryThread)]
+[SolutionComponent(Instantiation.DemandAnyThreadSafe)]
 public class ClassUsageInsightsProvider : ICodeInsightsProvider
 {
+    private readonly ToUnitySrdPipe toUnitySrdPipe;
+    private readonly ToUnityWindowFocusSwitch toUnityWindowFocusSwitch;
+
+    public ClassUsageInsightsProvider(ToUnitySrdPipe toUnitySrdPipe,
+        ToUnityWindowFocusSwitch toUnityWindowFocusSwitch)
+    {
+        this.toUnitySrdPipe = toUnitySrdPipe;
+        this.toUnityWindowFocusSwitch = toUnityWindowFocusSwitch;
+    }
+
     public bool IsAvailableIn(ISolution solution)
     {
         return true;
     }
 
-    public void OnClick(CodeInsightHighlightInfo highlightInfo, ISolution solution,CodeInsightsClickInfo clickInfo)
+    public void OnClick(CodeInsightHighlightInfo highlightInfo, ISolution solution, CodeInsightsClickInfo clickInfo)
     {
         var typeName = GetFullTypeName(highlightInfo);
-        UnityBridge.OpenUnitySearchToolWindowWithType(typeName);
-        WindowFocusSwitch.SwitchToUnityApplication();
+        toUnitySrdPipe.OpenUnitySearchToolWindowWithType(typeName);
+        toUnityWindowFocusSwitch.SwitchToUnityApplication();
     }
 
     private string GetFullTypeName(CodeInsightHighlightInfo highlightInfo)
