@@ -1,20 +1,18 @@
-name: Build & Release Rider Plugin
+name: Version Bump Pull Request
 
 on:
   push:
     branches:
       - main
-  pull_request:
-    branches:
-      - main
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
-  build:
+  version-bump:
     runs-on: ubuntu-latest
-    name: Build Plugin (PR / Main)
+    name: Version Bump PR
 
     steps:
       - name: Checkout code
@@ -38,46 +36,13 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Build plugin
-        run: ./gradlew buildPlugin
-
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: plugin-build
-          path: build/distributions/*.zip
-
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    name: Release on Main
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up JDK
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
+      # 🔹 Determine new version and changelog
       - name: Determine new version and changelog
         id: changelog
-        uses: release-please/action@v4
+        uses: google-github-actions/release-please-action@v4
         with:
           release-type: simple
           package-name: rider-plugin
-          changelog-types: |
-            [
-              {"type":"feat","section":"✨ Features","hidden":false},
-              {"type":"fix","section":"🐛 Fixes","hidden":false},
-              {"type":"chore","section":"🧹 Chores","hidden":false},
-              {"type":"docs","section":"📚 Docs","hidden":false}
-            ]
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -85,15 +50,17 @@ jobs:
         if: ${{ steps.changelog.outputs.release_created != 'true' }}
         run: echo "No new version to release."
 
-      - name: Update gradle.properties version
+      # 🔹 Update gradle.properties version
+      - name: Update gradle.properties
         if: ${{ steps.changelog.outputs.release_created == 'true' }}
         run: |
           TAG_NAME="${{ steps.changelog.outputs.tag_name }}"
-          VERSION="${TAG_NAME#v}"
+          VERSION="${TAG_NAME#v}"  # remove leading 'v'
           sed -i.bak "s/^version=.*/version=${VERSION}/" gradle.properties
           echo "✅ Updated gradle.properties to version ${VERSION}"
 
-      - name: Update plugin.xml version
+      # 🔹 Update plugin.xml version
+      - name: Update plugin.xml
         if: ${{ steps.changelog.outputs.release_created == 'true' }}
         run: |
           TAG_NAME="${{ steps.changelog.outputs.tag_name }}"
@@ -110,28 +77,26 @@ jobs:
             { print }
           ' "$XML_FILE" > "$XML_FILE.tmp" && mv "$XML_FILE.tmp" "$XML_FILE"
 
+          echo "✅ Updated version tags in plugin.xml:"
           grep "<version>" "$XML_FILE" || echo "(none found)"
 
-      - name: Build plugin
-        if: ${{ steps.changelog.outputs.release_created == 'true' }}
-        run: ./gradlew buildPlugin
+      # 🔹 Optionally update CHANGELOG.md (release-please does this automatically)
 
-      - name: Commit updated version and changelog
+      # 🔹 Create pull request with version bump
+      - name: Create Pull Request
         if: ${{ steps.changelog.outputs.release_created == 'true' }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add gradle.properties CHANGELOG.md src/rider/main/resources/META-INF/plugin.xml
-          git commit -m "chore(release): update version to ${{ steps.changelog.outputs.tag_name }}"
-          git push
-
-      - name: Create GitHub Release
-        if: ${{ steps.changelog.outputs.release_created == 'true' }}
-        uses: softprops/action-gh-release@v2
+        uses: peter-evans/create-pull-request@v5
         with:
-          tag_name: ${{ steps.changelog.outputs.tag_name }}
-          name: Release ${{ steps.changelog.outputs.tag_name }}
-          body: ${{ steps.changelog.outputs.release_notes }}
-          files: build/distributions/*.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore(release): bump version to ${{ steps.changelog.outputs.tag_name }}"
+          branch: "release-bump-${{ steps.changelog.outputs.tag_name }}"
+          title: "Bump plugin version to ${{ steps.changelog.outputs.tag_name }}"
+          body: |
+            This PR updates the plugin version to `${{ steps.changelog.outputs.tag_name }}`  
+            Changes include:
+            - gradle.properties version
+            - plugin.xml version
+            - CHANGELOG.md
+          labels: release, version-bump
+          base: main
+          delete-branch: true
+          token: ${{ secrets.GITHUB_TOKEN }}
