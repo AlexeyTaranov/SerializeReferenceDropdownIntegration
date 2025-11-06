@@ -1,7 +1,10 @@
-name: Release Rider Plugin
+name: Build & Release Rider Plugin
 
 on:
   push:
+    branches:
+      - main
+  pull_request:
     branches:
       - main
 
@@ -9,14 +12,15 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  build:
     runs-on: ubuntu-latest
+    name: Build Plugin (PR / Main)
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # needed for changelog and tagging
+          fetch-depth: 0
 
       - name: Set up JDK
         uses: actions/setup-java@v4
@@ -34,8 +38,34 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      # Auto version + changelog generator
-      - name: Bump version and generate changelog
+      - name: Build plugin
+        run: ./gradlew buildPlugin
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-build
+          path: build/distributions/*.zip
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    name: Release on Main
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Determine new version and changelog
         id: changelog
         uses: release-please/action@v4
         with:
@@ -48,20 +78,52 @@ jobs:
               {"type":"chore","section":"🧹 Chores","hidden":false},
               {"type":"docs","section":"📚 Docs","hidden":false}
             ]
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Stop if no release created
+      - name: Stop if no new release
         if: ${{ steps.changelog.outputs.release_created != 'true' }}
         run: echo "No new version to release."
 
-      - name: Set version in gradle.properties
+      - name: Update gradle.properties version
         if: ${{ steps.changelog.outputs.release_created == 'true' }}
         run: |
-          sed -i.bak "s/^version=.*/version=${{ steps.changelog.outputs.tag_name#v }}/" gradle.properties
-          cat gradle.properties
+          TAG_NAME="${{ steps.changelog.outputs.tag_name }}"
+          VERSION="${TAG_NAME#v}"
+          sed -i.bak "s/^version=.*/version=${VERSION}/" gradle.properties
+          echo "✅ Updated gradle.properties to version ${VERSION}"
+
+      - name: Update plugin.xml version
+        if: ${{ steps.changelog.outputs.release_created == 'true' }}
+        run: |
+          TAG_NAME="${{ steps.changelog.outputs.tag_name }}"
+          VERSION="${TAG_NAME#v}"
+          XML_FILE="src/rider/main/resources/META-INF/plugin.xml"
+          echo "🧩 Updating ${XML_FILE} to version ${VERSION}"
+
+          awk -v ver="$VERSION" '
+            /<!--/ { in_comment=1 }
+            /-->/ { in_comment=0 }
+            !in_comment {
+              gsub(/<version>[^<]+<\/version>/, "<version>" ver "</version>")
+            }
+            { print }
+          ' "$XML_FILE" > "$XML_FILE.tmp" && mv "$XML_FILE.tmp" "$XML_FILE"
+
+          grep "<version>" "$XML_FILE" || echo "(none found)"
 
       - name: Build plugin
         if: ${{ steps.changelog.outputs.release_created == 'true' }}
         run: ./gradlew buildPlugin
+
+      - name: Commit updated version and changelog
+        if: ${{ steps.changelog.outputs.release_created == 'true' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add gradle.properties CHANGELOG.md src/rider/main/resources/META-INF/plugin.xml
+          git commit -m "chore(release): update version to ${{ steps.changelog.outputs.tag_name }}"
+          git push
 
       - name: Create GitHub Release
         if: ${{ steps.changelog.outputs.release_created == 'true' }}
