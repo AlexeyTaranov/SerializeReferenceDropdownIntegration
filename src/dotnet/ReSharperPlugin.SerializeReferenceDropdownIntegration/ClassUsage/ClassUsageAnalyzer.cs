@@ -85,7 +85,7 @@ public class ClassUsageAnalyzer : ElementProblemAnalyzer<IClassDeclaration>
         }
         catch (Exception e)
         {
-            Log.DevError(e.ToString());
+            //
         }
     }
 }

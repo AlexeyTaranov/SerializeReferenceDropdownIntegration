@@ -1,4 +1,4 @@
-namespace ReSharperPlugin.SerializeReferenceDropdownIntegration.Refactorings.Rename;
+namespace ReSharperPlugin.SerializeReferenceDropdownIntegration.Refactorings.Rename.MovedFrom;
 
 public enum MovedFromRefactoringBehavior
 {

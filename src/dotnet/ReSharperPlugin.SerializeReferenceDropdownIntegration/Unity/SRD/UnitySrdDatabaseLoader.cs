@@ -12,6 +12,7 @@ using Newtonsoft.Json.Linq;
 
 namespace ReSharperPlugin.SerializeReferenceDropdownIntegration.Unity.SRD;
 
+//TODO: Move database implementation from this json unity cache to yaml file reading
 [SolutionComponent(Instantiation.DemandAnyThreadSafe)]
 public class UnitySrdDatabaseLoader
 {
