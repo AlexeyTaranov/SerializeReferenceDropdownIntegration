@@ -1,9 +1,13 @@
 using System.Collections.Generic;
+using System.Linq;
 using JetBrains.Application.Parts;
 using JetBrains.ProjectModel;
 using JetBrains.ReSharper.Daemon.CodeInsights;
+using JetBrains.ReSharper.Psi.CSharp.Tree;
 using JetBrains.Rider.Model;
+using ReSharperPlugin.SerializeReferenceDropdownIntegration.Extensions;
 using ReSharperPlugin.SerializeReferenceDropdownIntegration.ToUnity;
+using ReSharperPlugin.SerializeReferenceDropdownIntegration.Unity.AssetsDatabase;
 
 namespace ReSharperPlugin.SerializeReferenceDropdownIntegration.ClassUsage;
 
@@ -12,12 +16,15 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
 {
     private readonly ToUnitySrdPipe toUnitySrdPipe;
     private readonly ToUnityWindowFocusSwitch toUnityWindowFocusSwitch;
+    private readonly ReferencesCountDatabase countDatabase;
 
     public ClassUsageInsightsProvider(ToUnitySrdPipe toUnitySrdPipe,
-        ToUnityWindowFocusSwitch toUnityWindowFocusSwitch)
+        ToUnityWindowFocusSwitch toUnityWindowFocusSwitch,
+        ReferencesCountDatabase countDatabase)
     {
         this.toUnitySrdPipe = toUnitySrdPipe;
         this.toUnityWindowFocusSwitch = toUnityWindowFocusSwitch;
+        this.countDatabase = countDatabase;
     }
 
     public bool IsAvailableIn(ISolution solution)
@@ -34,18 +41,15 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
 
     private string GetFullTypeName(CodeInsightHighlightInfo highlightInfo)
     {
-        //Need better solution and get full names everywhere
-        var shortName = highlightInfo.CodeInsightsHighlighting.DeclaredElement.ShortName;
-        if (ClassUsageAnalyzer.shortTypeToFullType.TryGetValue(shortName, out var fullName))
-        {
-            return fullName;
-        }
-
-        return shortName;
+        var declarations = highlightInfo.CodeInsightsHighlighting.DeclaredElement.GetDeclarations();
+        var classDeclaration = declarations.OfType<IClassDeclaration>().FirstOrDefault();
+        var unityType = classDeclaration.ExtractUnityTypeFromClassDeclaration();
+        return unityType.GetFullTypeName();
     }
 
     public void OnExtraActionClick(CodeInsightHighlightInfo highlightInfo, string actionId, ISolution solution)
     {
+        countDatabase.RunRefreshDatabase();
     }
 
     public string ProviderId => nameof(ClassUsageInsightsProvider);

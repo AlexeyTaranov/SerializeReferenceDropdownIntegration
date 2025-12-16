@@ -9,6 +9,7 @@ using JetBrains.ReSharper.Psi.CSharp.Tree;
 using JetBrains.ReSharper.Psi.Pointers;
 using JetBrains.ReSharper.Refactorings.Rename;
 using ReSharperPlugin.SerializeReferenceDropdownIntegration.Data;
+using ReSharperPlugin.SerializeReferenceDropdownIntegration.Extensions;
 
 namespace ReSharperPlugin.SerializeReferenceDropdownIntegration.Refactorings.Rename.ModifyUnityAsset;
 
@@ -35,7 +36,7 @@ public class ModifyUnityAssetAtomicRename : AtomicRenameBase
         var oldType = ExtractCurrentType();
         var newType = oldType with { ClassName = NewName };
 
-        var implementation = new ModifyUnityAssetImplementation(oldType, newType, solution);
+        var implementation = new ModifyUnityAssetModel(oldType, newType, solution);
         return new ModifyUnityAssetRefactoringPage(((RefactoringWorkflowBase)renameWorkflow).WorkflowExecuterLifetime,
             implementation);
     }
@@ -43,27 +44,8 @@ public class ModifyUnityAssetAtomicRename : AtomicRenameBase
     private UnityTypeData ExtractCurrentType()
     {
         var declaration = GetDeclaration(myPointer.FindDeclaredElement() as ITypeMember);
-        var psi = declaration.GetPsiModule();
         var classDeclaration = declaration as IClassDeclaration;
-
-        var fullTypeName = classDeclaration?.CLRName;
-
-        var typeName = fullTypeName;
-        var typeNamespace = string.Empty;
-
-        var lastDot = fullTypeName?.LastIndexOf('.');
-        if (lastDot > 0)
-        {
-            typeNamespace = fullTypeName.Substring(0, lastDot.Value);
-            typeName = fullTypeName.Substring(lastDot.Value + 1);
-        }
-
-        return new UnityTypeData()
-        {
-            ClassName = typeName,
-            Namespace = typeNamespace,
-            AssemblyName = psi.ContainingProjectModule.Name,
-        };
+        return  classDeclaration.ExtractUnityTypeFromClassDeclaration();
     }
 
     private IClassMemberDeclaration? GetDeclaration(ITypeMember? typeMember)

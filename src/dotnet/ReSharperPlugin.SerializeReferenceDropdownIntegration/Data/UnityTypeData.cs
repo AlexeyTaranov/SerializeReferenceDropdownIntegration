@@ -1,11 +1,9 @@
 namespace ReSharperPlugin.SerializeReferenceDropdownIntegration.Data;
 
-public struct UnityTypeData
+public readonly record struct UnityTypeData(string ClassName, string Namespace, string AssemblyName)
 {
-    public string AssemblyName;
-    public string Namespace;
-    public string ClassName;
-
-    public readonly string BuildSerializeReferenceTypeString() =>
+    public string BuildSerializeReferenceTypeString() =>
         $"class: {ClassName}, ns: {Namespace}, asm: {AssemblyName}";
+
+    public string GetFullTypeName() => string.IsNullOrEmpty(Namespace) ? ClassName : $"{Namespace}.{ClassName}";
 }

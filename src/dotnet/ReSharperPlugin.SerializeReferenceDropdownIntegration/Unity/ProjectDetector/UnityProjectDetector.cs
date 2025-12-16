@@ -3,7 +3,7 @@ using System.Linq;
 using JetBrains.Application.Parts;
 using JetBrains.ProjectModel;
 
-namespace ReSharperPlugin.SerializeReferenceDropdownIntegration.Unity.SRD;
+namespace ReSharperPlugin.SerializeReferenceDropdownIntegration.Unity.ProjectDetector;
 
 [SolutionComponent(Instantiation.DemandAnyThreadSafe)]
 public class UnityProjectDetector

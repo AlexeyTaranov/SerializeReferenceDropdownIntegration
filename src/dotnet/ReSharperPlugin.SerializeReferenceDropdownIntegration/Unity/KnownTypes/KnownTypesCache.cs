@@ -5,7 +5,7 @@ using JetBrains.ProjectModel;
 using JetBrains.ReSharper.Psi;
 using JetBrains.ReSharper.Psi.Modules;
 
-namespace ReSharperPlugin.SerializeReferenceDropdownIntegration.Unity;
+namespace ReSharperPlugin.SerializeReferenceDropdownIntegration.Unity.KnownTypes;
 
 [SolutionComponent(Instantiation.DemandAnyThreadSafe)]
 public class KnownTypesCache

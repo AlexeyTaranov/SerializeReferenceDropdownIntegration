@@ -20,7 +20,6 @@ public class ModifyUnityAssetRefactoringPage : SingleBeRefactoringPage, IDisposa
 {
     public static ModifyYamlShowBehaviour ShowBehaviour { get; private set; }
 
-
     private readonly BeGrid myContent;
     private readonly IProperty<bool> hidePageOnThisSession;
 
@@ -28,7 +27,7 @@ public class ModifyUnityAssetRefactoringPage : SingleBeRefactoringPage, IDisposa
 
     private CancellationTokenSource closePageCancellationToken;
 
-    public ModifyUnityAssetRefactoringPage(Lifetime lifetime, ModifyUnityAssetImplementation implementation) : base(lifetime)
+    public ModifyUnityAssetRefactoringPage(Lifetime lifetime, ModifyUnityAssetModel model) : base(lifetime)
     {
         closePageCancellationToken = new CancellationTokenSource();
         myContent = BeControls.BeLabel("This feature without UNDO! Keep modifications in VCS!").InAutoGrid();
@@ -85,7 +84,7 @@ public class ModifyUnityAssetRefactoringPage : SingleBeRefactoringPage, IDisposa
             fetchFilesCountVisibility.Value = false;
             
             var result = await Task.Run(() =>
-                implementation.FetchSerializeReferenceCountInAssetsFolderAsync(closePageCancellationToken.Token));
+                model.FetchSerializeReferenceCountInAssetsFolderAsync(closePageCancellationToken.Token));
             
             referencesCount.Value = result;
             fetchingFilesCount.Value = false;
@@ -99,7 +98,7 @@ public class ModifyUnityAssetRefactoringPage : SingleBeRefactoringPage, IDisposa
             modifyFilesVisibility.Value = false;
             modifiedFilesLabelVisibility.Value = true;
             
-            await Task.Run(implementation.ModifyAllFilesAsync);
+            await Task.Run(model.ModifyAllFilesAsync);
             
             ContinueEnabled.Value = true;
             modifiedFilesLabel.SetText("Modified files: COMPLETE");

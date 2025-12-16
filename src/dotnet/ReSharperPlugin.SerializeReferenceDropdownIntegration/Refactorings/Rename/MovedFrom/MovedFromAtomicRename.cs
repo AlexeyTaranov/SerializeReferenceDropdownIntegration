@@ -12,7 +12,7 @@ using JetBrains.ReSharper.Psi.Tree;
 using JetBrains.ReSharper.Refactorings.Rename;
 using JetBrains.Util;
 using JetBrains.Util.dataStructures;
-using ReSharperPlugin.SerializeReferenceDropdownIntegration.Unity;
+using ReSharperPlugin.SerializeReferenceDropdownIntegration.Unity.KnownTypes;
 
 namespace ReSharperPlugin.SerializeReferenceDropdownIntegration.Refactorings.Rename.MovedFrom;
 
@@ -105,7 +105,7 @@ public class MovedFromAtomicRename : AtomicRenameBase
             if (attributeTypeElement == null)
                 continue;
 
-            if (Equals(attributeTypeElement.GetClrName(), KnownTypes.MovedFromAttribute))
+            if (Equals(attributeTypeElement.GetClrName(), KnownTypes.movedFromAttribute))
             {
                 var attributeInstance = attribute.GetAttributeInstance();
                 var nameParameter = attributeInstance.PositionParameter(0);
@@ -157,7 +157,7 @@ public class MovedFromAtomicRename : AtomicRenameBase
     {
         var module = owningNode.GetPsiModule();
         var elementFactory = CSharpElementFactory.GetInstance(owningNode);
-        var attributeType = myKnownTypesCache.GetByClrTypeName(KnownTypes.MovedFromAttribute, module);
+        var attributeType = myKnownTypesCache.GetByClrTypeName(KnownTypes.movedFromAttribute, module);
         var attributeTypeElement = attributeType.GetTypeElement();
         if (attributeTypeElement == null)
             return null;

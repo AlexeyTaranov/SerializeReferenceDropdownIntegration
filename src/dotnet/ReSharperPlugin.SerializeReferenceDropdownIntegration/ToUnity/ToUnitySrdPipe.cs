@@ -1,6 +1,7 @@
 using System;
 using System.IO.Pipes;
 using System.Text;
+using System.Threading.Tasks;
 using JetBrains.Application.Parts;
 using JetBrains.ProjectModel;
 using JetBrains.Util;
@@ -15,6 +16,16 @@ public class ToUnitySrdPipe
 
     public void OpenUnitySearchToolWindowWithType(string typeName)
     {
+        Task.Run(() => SendMessageToPipe(typeName));
+        if (showOnce == false)
+        {
+            MessageBox.ShowInfo("Check Unity window:)", "SRD DEV");
+            showOnce = true;
+        }
+    }
+
+    private void SendMessageToPipe(string typeName)
+    {
         try
         {
             using var client = new NamedPipeClientStream(".", PipeName, PipeDirection.Out);
@@ -23,11 +34,6 @@ public class ToUnitySrdPipe
             var buffer = Encoding.UTF8.GetBytes(command);
             client.Write(buffer, 0, buffer.Length);
             client.Flush();
-            if (showOnce == false)
-            {
-                MessageBox.ShowInfo("Check Unity window:)", "SRD DEV");
-                showOnce = true;
-            }
         }
         catch (Exception e)
         {
