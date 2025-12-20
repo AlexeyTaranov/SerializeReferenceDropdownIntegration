@@ -5,6 +5,7 @@ using JetBrains.ProjectModel;
 using JetBrains.ReSharper.Daemon.CodeInsights;
 using JetBrains.ReSharper.Psi.CSharp.Tree;
 using JetBrains.Rider.Model;
+using JetBrains.Util;
 using ReSharperPlugin.SerializeReferenceDropdownIntegration.Extensions;
 using ReSharperPlugin.SerializeReferenceDropdownIntegration.ToUnity;
 using ReSharperPlugin.SerializeReferenceDropdownIntegration.Unity.AssetsDatabase;
@@ -32,8 +33,18 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
         return true;
     }
 
+    //TODO: On short click can show window as Unity Resharper plugin. Now its message hell on first launch =_=
     public void OnClick(CodeInsightHighlightInfo highlightInfo, ISolution solution, CodeInsightsClickInfo clickInfo)
     {
+        if (countDatabase.CurrentState.Value != ReferencesCountDatabase.DatabaseState.Refreshing)
+        {
+            var needRefreshDB = MessageBox.ShowYesNo("Need Refresh SRD Database?");
+            if (needRefreshDB)
+            {
+                countDatabase.RunRefreshDatabase();
+            }
+        }
+
         var typeName = GetFullTypeName(highlightInfo);
         toUnitySrdPipe.OpenUnitySearchToolWindowWithType(typeName);
         toUnityWindowFocusSwitch.SwitchToUnityApplication();
@@ -49,7 +60,6 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
 
     public void OnExtraActionClick(CodeInsightHighlightInfo highlightInfo, string actionId, ISolution solution)
     {
-        countDatabase.RunRefreshDatabase();
     }
 
     public string ProviderId => nameof(ClassUsageInsightsProvider);

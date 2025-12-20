@@ -1,12 +1,17 @@
 using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
-using JetBrains.Application.Notifications;
 using JetBrains.Application.Parts;
+using JetBrains.Application.Threading;
 using JetBrains.Collections.Viewable;
+using JetBrains.DataFlow;
 using JetBrains.Lifetimes;
 using JetBrains.ProjectModel;
+using JetBrains.ProjectModel.ProjectsHost.SolutionHost.Progress;
+using JetBrains.ReSharper.Daemon;
+using JetBrains.Threading;
 using ReSharperPlugin.SerializeReferenceDropdownIntegration.Data;
 
 namespace ReSharperPlugin.SerializeReferenceDropdownIntegration.Unity.AssetsDatabase;
@@ -16,26 +21,29 @@ public class ReferencesCountDatabase
 {
     public enum DatabaseState
     {
-        EmptyDatabase,
+        Empty,
         Refreshing,
-        DatabaseFilled
+        Filled
     }
 
-    private readonly UserNotifications userNotifications;
     private readonly Lifetime lifetime;
     private readonly ISolution solution;
+    private readonly IShellLocks myShellLocks;
+    private readonly BackgroundProgressManager myBackgroundProgressManager;
 
     private readonly ViewableProperty<DatabaseState> currentState;
 
     private Dictionary<UnityTypeData, int> typesCount = new();
     public IViewableProperty<DatabaseState> CurrentState => currentState;
 
-    public ReferencesCountDatabase(UserNotifications userNotifications, Lifetime lifetime, ISolution solution)
+    public ReferencesCountDatabase(Lifetime lifetime, ISolution solution, IShellLocks myShellLocks,
+        BackgroundProgressManager myBackgroundProgressManager)
     {
-        currentState = new ViewableProperty<DatabaseState>(DatabaseState.EmptyDatabase);
-        this.userNotifications = userNotifications;
+        currentState = new ViewableProperty<DatabaseState>(DatabaseState.Empty);
         this.lifetime = lifetime;
         this.solution = solution;
+        this.myShellLocks = myShellLocks;
+        this.myBackgroundProgressManager = myBackgroundProgressManager;
     }
 
     public int GetUsagesCount(UnityTypeData type)
@@ -44,36 +52,91 @@ public class ReferencesCountDatabase
         return count;
     }
 
-    public async void RunRefreshDatabase()
+    public void RunRefreshDatabase()
     {
         if (CurrentState.Value == DatabaseState.Refreshing)
         {
             return;
         }
 
-        currentState.Value = DatabaseState.Refreshing;
+        var refreshDatabaseProgressProperty =
+            new Property<double>($"{nameof(RunRefreshDatabase)}::Progress", 0).EnsureNotOutside(0.0, 1.0);
 
-        try
+        //TODO: Check how to use lifetimes and cancellationTokens
+        var refreshDatabaseLifetimeDefinition = Lifetime.Define(lifetime);
+        var cancellationTokenSource = new CancellationTokenSource();
+
+        var progress = BackgroundProgressBuilder.Create()
+            .WithHeader("Refresh SRD Database")
+            .WithProgress(refreshDatabaseProgressProperty)
+            .AsCancelable(() =>
+            {
+                cancellationTokenSource.Cancel();
+                refreshDatabaseLifetimeDefinition.Terminate();
+            })
+            .Build();
+        myBackgroundProgressManager.AddNewTask(refreshDatabaseLifetimeDefinition.Lifetime, progress);
+
+        myShellLocks.StartBackgroundAsync(refreshDatabaseLifetimeDefinition.Lifetime,
+            () => RefreshDatabase(refreshDatabaseProgressProperty, cancellationTokenSource.Token)).NoAwait();
+
+        async Task RefreshDatabase(Property<double> progressProperty, CancellationToken cancellationToken)
         {
-            var result = await Task.Run(FetchSerializeReferenceTypesCountAsync);
-            typesCount = result;
+            currentState.Value = DatabaseState.Refreshing;
+            try
+            {
+                var result = await FetchSerializeReferenceTypesCountAsync(progressProperty, cancellationToken);
+                if (result == null)
+                {
+                    DropDatabase();
+                    return;
+                }
 
-            userNotifications.CreateNotification(lifetime, NotificationSeverity.INFO, "SRD - Database refreshed");
-        }
-        catch (Exception e)
-        {
-            //
-        }
+                typesCount = result;
+                InvalidateSolution();
+                refreshDatabaseLifetimeDefinition.Terminate();
+            }
+            catch (Exception _)
+            {
+                DropDatabase();
+                refreshDatabaseLifetimeDefinition.Terminate();
+                return;
+                //
+            }
 
-        currentState.Value = DatabaseState.DatabaseFilled;
+            currentState.Value = DatabaseState.Filled;
+
+            void DropDatabase()
+            {
+                currentState.Value = DatabaseState.Empty;
+                typesCount.Clear();
+                InvalidateSolution();
+            }
+
+            //HACK: Bad idea(( Need to find solution how to reload only ClassUsageAnalyzers
+            void InvalidateSolution()
+            {
+                DaemonBase.GetInstance(solution).Invalidate();
+            }
+        }
     }
 
-    private async Task<Dictionary<UnityTypeData, int>> FetchSerializeReferenceTypesCountAsync()
+    private async Task<Dictionary<UnityTypeData, int>> FetchSerializeReferenceTypesCountAsync(Property<double> progress,
+        CancellationToken cancellationToken)
     {
         var typeCount = new Dictionary<UnityTypeData, int>();
         var allFiles = AssetsIterator.GetUnityFilesInAssetsFolder(solution);
-        foreach (var filePath in allFiles)
+
+        //TODO: Parallel read files? 
+        for (var i = 0; i < allFiles.Count; i++)
         {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return null;
+            }
+
+            var filePath = allFiles[i];
+            progress.Value = (float)(i + 1) / (float)allFiles.Count;
             await AssetsIterator.ReadReferencesBlockInUnityAsset(filePath, OnReferenceLineRead);
         }
 

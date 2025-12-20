@@ -23,9 +23,10 @@ public class ModifyUnityAssetAtomicRename : AtomicRenameBase
         myPointer = declaredElement.CreateElementPointer();
         this.solution = solution;
         NewName = newName;
+        OldName = declaredElement.ShortName;
     }
 
-    public override IRefactoringPage CreateRenamesConfirmationPage(IRenameWorkflow renameWorkflow,
+    public override IRefactoringPage? CreateRenamesConfirmationPage(IRenameWorkflow renameWorkflow,
         IProgressIndicator pi)
     {
         if (ModifyUnityAssetRefactoringPage.ShowBehaviour == ModifyYamlShowBehaviour.DontShow)
@@ -48,7 +49,7 @@ public class ModifyUnityAssetAtomicRename : AtomicRenameBase
         return  classDeclaration.ExtractUnityTypeFromClassDeclaration();
     }
 
-    private IClassMemberDeclaration? GetDeclaration(ITypeMember? typeMember)
+    private IClassMemberDeclaration GetDeclaration(ITypeMember typeMember)
     {
         var declarations = typeMember?.GetDeclarations();
         if (declarations?.Count == 1)
@@ -63,9 +64,9 @@ public class ModifyUnityAssetAtomicRename : AtomicRenameBase
         return;
     }
 
-    public override IDeclaredElement NewDeclaredElement => myPointer.FindDeclaredElement();
+    public override IDeclaredElement? NewDeclaredElement => myPointer.FindDeclaredElement();
     public override string NewName { get; }
     public override string OldName { get; }
     public override IDeclaredElement PrimaryDeclaredElement => myPointer.FindDeclaredElement().NotNull();
-    public override IList<IDeclaredElement> SecondaryDeclaredElements => null;
+    public override IList<IDeclaredElement>? SecondaryDeclaredElements => null;
 }

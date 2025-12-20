@@ -18,11 +18,11 @@ public class MovedFromAtomicRenameFactory : IAtomicRenameFactory
     public bool IsApplicable(IDeclaredElement declaredElement)
     {
         renameDeclaredElements.Clear();
-        
+
         //TODO Support rename namespaces?
         var isClass = declaredElement.IsClass();
-        var isUnityProject = UnityProjectDetector.Instance.IsUnityProject();
-        return isClass && isUnityProject;
+
+        return isClass || declaredElement.IsFromUnityProject();
     }
 
     public RenameAvailabilityCheckResult CheckRenameAvailability(IDeclaredElement element)

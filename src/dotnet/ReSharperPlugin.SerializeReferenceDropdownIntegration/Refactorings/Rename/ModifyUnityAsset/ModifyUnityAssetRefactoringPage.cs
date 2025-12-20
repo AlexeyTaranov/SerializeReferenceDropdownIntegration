@@ -27,9 +27,12 @@ public class ModifyUnityAssetRefactoringPage : SingleBeRefactoringPage, IDisposa
 
     private CancellationTokenSource closePageCancellationToken;
 
+    // TODO Replace strings with resourceManager?
     public ModifyUnityAssetRefactoringPage(Lifetime lifetime, ModifyUnityAssetModel model) : base(lifetime)
     {
         closePageCancellationToken = new CancellationTokenSource();
+
+        //TODO Need implement UNDO
         myContent = BeControls.BeLabel("This feature without UNDO! Keep modifications in VCS!").InAutoGrid();
 
         myContent.AddElement(new BeSpacer());
@@ -45,23 +48,25 @@ public class ModifyUnityAssetRefactoringPage : SingleBeRefactoringPage, IDisposa
         var modifyFilesVisibility = new ViewableProperty<bool>(false);
         var fetchFilesCountButton = BeControls.GetButton("Fetch references count in Assets folder", lifetime,
             () => fetchReferencesCount.Invoke());
+        
         fetchFilesCountButton.EnableWhen(lifetime, fetchFilesCountVisibility);
-        fetchReferencesCount = () => FetchCountAsync();
+        fetchReferencesCount = async void () => await FetchCountAsync();
 
         myContent.AddElement(fetchFilesCountButton);
         myContent.AddElement(new BeSpacer());
-        
+
         var modifiedFilesLabel = BeControls.BeLabel("Modified files: PENDING");
         var modifiedFilesLabelVisibility = new ViewableProperty<bool>(false);
         modifiedFilesLabel.EnableWhen(lifetime, modifiedFilesLabelVisibility);
-        var modifyAllFilesButton = BeControls.GetButton("Modify all files", lifetime, () => ModifyFilesAsync());
+        var modifyAllFilesButton =
+            BeControls.GetButton("Modify all files", lifetime, async void () => await ModifyFilesAsync());
         modifyAllFilesButton.EnableWhen(lifetime, modifyFilesVisibility);
         myContent.AddElement(modifyAllFilesButton);
         myContent.AddElement(modifiedFilesLabel);
 
         myContent.AddElement(new BeSpacer());
-
-
+        
+        
         hidePageOnThisSession = new Property<bool>("Hide modify file on this session",
             ShowBehaviour == ModifyYamlShowBehaviour.DontShow);
         myContent.AddElement(hidePageOnThisSession.GetBeCheckBox(lifetime, "Hide this window"));
@@ -82,10 +87,10 @@ public class ModifyUnityAssetRefactoringPage : SingleBeRefactoringPage, IDisposa
         {
             fetchingFilesCount.Value = true;
             fetchFilesCountVisibility.Value = false;
-            
+
             var result = await Task.Run(() =>
                 model.FetchSerializeReferenceCountInAssetsFolderAsync(closePageCancellationToken.Token));
-            
+
             referencesCount.Value = result;
             fetchingFilesCount.Value = false;
             modifyFilesVisibility.Value = result > 0;
@@ -97,9 +102,9 @@ public class ModifyUnityAssetRefactoringPage : SingleBeRefactoringPage, IDisposa
             fetchFilesCountVisibility.Value = false;
             modifyFilesVisibility.Value = false;
             modifiedFilesLabelVisibility.Value = true;
-            
+
             await Task.Run(model.ModifyAllFilesAsync);
-            
+
             ContinueEnabled.Value = true;
             modifiedFilesLabel.SetText("Modified files: COMPLETE");
         }

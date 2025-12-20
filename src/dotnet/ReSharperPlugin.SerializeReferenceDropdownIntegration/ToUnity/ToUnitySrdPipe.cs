@@ -13,10 +13,19 @@ public class ToUnitySrdPipe
 {
     private const string PipeName = "SerializeReferenceDropdownIntegration";
     private bool showOnce;
+    private bool? needOpenSearchTool;
 
     public void OpenUnitySearchToolWindowWithType(string typeName)
     {
+        needOpenSearchTool ??= MessageBox.ShowYesNoCancel("Need open Search Tool in this session?");
+
+        if (needOpenSearchTool != true)
+        {
+            return;
+        }
+
         Task.Run(() => SendMessageToPipe(typeName));
+        
         if (showOnce == false)
         {
             MessageBox.ShowInfo("Check Unity window:)", "SRD DEV");
@@ -35,7 +44,7 @@ public class ToUnitySrdPipe
             client.Write(buffer, 0, buffer.Length);
             client.Flush();
         }
-        catch (Exception e)
+        catch (Exception _)
         {
             //
         }

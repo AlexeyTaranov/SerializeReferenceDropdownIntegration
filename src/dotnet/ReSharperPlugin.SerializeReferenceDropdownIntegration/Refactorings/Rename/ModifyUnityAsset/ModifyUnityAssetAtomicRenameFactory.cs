@@ -18,8 +18,7 @@ public class ModifyUnityAssetAtomicRenameFactory : IAtomicRenameFactory
         renameDeclaredElements.Clear();
 
         var isClass = declaredElement.IsClass();
-        var isUnityProject = UnityProjectDetector.Instance.IsUnityProject();
-        return isClass && isUnityProject;
+        return isClass && declaredElement.IsFromUnityProject();
     }
 
     public RenameAvailabilityCheckResult CheckRenameAvailability(IDeclaredElement element)

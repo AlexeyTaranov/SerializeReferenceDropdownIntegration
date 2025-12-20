@@ -12,23 +12,20 @@ using ReSharperPlugin.SerializeReferenceDropdownIntegration.Unity.ProjectDetecto
 
 namespace ReSharperPlugin.SerializeReferenceDropdownIntegration.ClassUsage;
 
-//TODO Move from problemAnalyzer to something else where usages works normally
+//TODO: Usage is not problem. Need only highlight on non-zero references count
 [ElementProblemAnalyzer(typeof(IClassDeclaration))]
 public class ClassUsageAnalyzer : ElementProblemAnalyzer<IClassDeclaration>
 {
     private readonly ClassUsageInsightsProvider codeInsightsProvider;
     private readonly ReferencesCountDatabase countDatabase;
-    private readonly UnityProjectDetector unityProjectDetector;
     private readonly Lifetime lifetime;
 
     public ClassUsageAnalyzer(ClassUsageInsightsProvider codeInsightsProvider,
         ReferencesCountDatabase assetsSerializeReferencesCountDatabase,
-        UnityProjectDetector unityProjectDetector,
         Lifetime lifetime)
     {
         this.codeInsightsProvider = codeInsightsProvider;
         this.countDatabase = assetsSerializeReferencesCountDatabase;
-        this.unityProjectDetector = unityProjectDetector;
         this.lifetime = lifetime;
     }
 
@@ -37,21 +34,9 @@ public class ClassUsageAnalyzer : ElementProblemAnalyzer<IClassDeclaration>
     {
         try
         {
-            if (unityProjectDetector.IsUnityProject() == false)
+            if (element.DeclaredElement?.IsFromUnityProject() != true)
             {
                 return;
-            }
-
-            if (countDatabase.CurrentState.Value ==
-                ReferencesCountDatabase.DatabaseState.Refreshing)
-            {
-                countDatabase.CurrentState.Advise(lifetime, db =>
-                {
-                    if (db == ReferencesCountDatabase.DatabaseState.DatabaseFilled)
-                    {
-                        Run(element, data, consumer);
-                    }
-                });
             }
 
             var nonReferenceType = element.IsStatic || element.IsAbstract;
@@ -75,17 +60,26 @@ public class ClassUsageAnalyzer : ElementProblemAnalyzer<IClassDeclaration>
                 return;
             }
 
-            var unityType = element.ExtractUnityTypeFromClassDeclaration();
-            var usageCount = countDatabase.GetUsagesCount(unityType);
+            var dbState = countDatabase.CurrentState.Value;
 
-            //TODO Need check usages with MovedFrom attribute
-            var tooltip = $"SerializeReferenceDropdown: '{unityType.ClassName}' {usageCount} - usages in project";
+            var displayText = $"SRD: {dbState}";
+            var tooltip = displayText;
+
+            if (dbState == ReferencesCountDatabase.DatabaseState.Filled)
+            {
+                var unityType = element.ExtractUnityTypeFromClassDeclaration();
+                var usageCount = countDatabase.GetUsagesCount(unityType);
+
+                displayText = $"SRD: {usageCount} usages";
+                tooltip = $"SerializeReferenceDropdown: '{unityType.ClassName}' {usageCount} - usages in project";
+            }
+
             consumer.AddHighlighting(
                 new CodeInsightsHighlighting(
                     element.GetNameDocumentRange(),
-                    displayText: $"SRD: {usageCount} usages",
+                    displayText: displayText,
                     tooltipText: tooltip,
-                    moreText: String.Empty,
+                    moreText: "More text",
                     codeInsightsProvider,
                     element.DeclaredElement, null));
         }

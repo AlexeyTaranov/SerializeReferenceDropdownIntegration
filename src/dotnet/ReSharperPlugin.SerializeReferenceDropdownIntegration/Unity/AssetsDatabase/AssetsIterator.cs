@@ -11,7 +11,7 @@ public static class AssetsIterator
 {
     public record struct LineInfo(string Text, int LineIndex);
 
-    private static readonly string[] unitySerializeReferenceAssetsExtensions = [".unity", ".prefab"];
+    private static readonly string[] unitySerializeReferenceAssetsExtensions = [".unity", ".prefab", ".asset"];
 
     public static IReadOnlyList<string> GetUnityFilesInAssetsFolder(ISolution solution)
     {

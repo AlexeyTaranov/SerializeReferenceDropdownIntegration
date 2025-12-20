@@ -21,8 +21,6 @@ public class KnownTypesCache
         if (type != null)
             return type;
 
-        // Make sure the type is still valid before handing it out. It might be invalid if the module used to create
-        // it has been changed
         type = myTypes.AddOrUpdate(typeName, name => TypeFactory.CreateTypeByCLRName(name, nullableAnnotation, module),
             (name, existingValue) => existingValue.Module.IsValid()
                 ? existingValue
