@@ -13,11 +13,19 @@ public static class AssetsIterator
 {
     public record struct UnityReferenceTypeLineData(UnityTypeData Type, int LineIndex, bool MultiLine);
 
+    public record struct UnityReferenceTypePrefabOverrideLineData(UnityTypeData Type, int LineIndex);
+
     private record struct LineInfo(string Text, int LineIndex);
+
     private record struct ReadTextData(LineInfo CurrentLineText, LineInfo PreviousLineText);
+
     private static readonly string[] unitySerializeReferenceAssetsExtensions = [".unity", ".prefab", ".asset"];
 
-    public static readonly Regex serializeReferenceRegex = new (@"type:\s*\{class:\s*([^,]+),\s*ns:\s*([^,]+),\s*asm:\s*([^\}]+)\}");
+    public static readonly Regex serializeReferenceRegex =
+        new(@"type:\s*\{class:\s*([^,]+),\s*ns:\s*([^,]+),\s*asm:\s*([^\}]+)\}");
+
+    public static readonly Regex prefabOverrideSerializeReferenceTypeRegex =
+        new(@"value:\s+([^\s]+)\s+(.+)\.([^.]+)", RegexOptions.Compiled);
 
     public static IReadOnlyList<string> GetUnityFilesInAssetsFolder(ISolution solution)
     {
@@ -30,9 +38,10 @@ public static class AssetsIterator
         return allUnityFiles;
     }
 
-    public static async Task FillReferenceTypesBlocksAsync(string path, List<UnityReferenceTypeLineData> fileTypes)
+    public static async Task FillReferenceTypesBlocksAsync(string path, List<UnityReferenceTypeLineData> referenceTypes,
+        List<UnityReferenceTypePrefabOverrideLineData> prefabOverrides)
     {
-        await ReadReferencesBlockInUnityAsset(path, OnReferenceLineRead);
+        await ReadReferencesBlockInUnityAsset(path, OnReferenceLineRead, OnPrefabOverrideTypeRead);
 
         void OnReferenceLineRead(ReadTextData readTextData)
         {
@@ -64,12 +73,18 @@ public static class AssetsIterator
                 var lineIndex = isMultiLine
                     ? readTextData.PreviousLineText.LineIndex
                     : readTextData.CurrentLineText.LineIndex;
-                fileTypes?.Add(new UnityReferenceTypeLineData(unityTypeData, lineIndex, isMultiLine));
+                referenceTypes?.Add(new UnityReferenceTypeLineData(unityTypeData, lineIndex, isMultiLine));
             }
+        }
+
+        void OnPrefabOverrideTypeRead(UnityTypeData prefabOverride, int lineIndex)
+        {
+            prefabOverrides.Add(new UnityReferenceTypePrefabOverrideLineData(prefabOverride, lineIndex));
         }
     }
 
-    private static async Task ReadReferencesBlockInUnityAsset(string path, Action<ReadTextData> onReferenceLineRead)
+    private static async Task ReadReferencesBlockInUnityAsset(string path,
+        Action<ReadTextData> onReferenceLineRead, Action<UnityTypeData, int> onPrefabOverrideTypeRead)
     {
         bool insideReferences = false;
 
@@ -80,29 +95,62 @@ public static class AssetsIterator
         while ((line = await reader.ReadLineAsync().ConfigureAwait(false)) != null)
         {
             lineIndex++;
+
+            if (previousLine.Text?.TrimStart().StartsWith("propertyPath: 'managedReferences[") == true)
+            {
+                if (TryParsePrefabOverrideTypeFromString(line, out var overrideUnityType))
+                {
+                    onPrefabOverrideTypeRead.Invoke(overrideUnityType, lineIndex);
+                }
+            }
+            
             line = line.TrimStart();
+            var currentLine = new LineInfo(line, lineIndex);
 
             if (line.StartsWith("---"))
             {
                 insideReferences = false;
+                previousLine = currentLine;
                 continue;
             }
 
             if (!insideReferences && line.StartsWith("references:"))
             {
                 insideReferences = true;
+                previousLine = currentLine;
                 continue;
             }
 
             if (!insideReferences)
             {
+                previousLine = currentLine;
                 continue;
             }
 
-            var currentLine = new LineInfo(line, lineIndex);
             onReferenceLineRead.Invoke(new ReadTextData(currentLine, previousLine));
-            
+
             previousLine = currentLine;
         }
+    }
+
+    //Prefab overrides looks like
+    //      propertyPath: 'managedReferences[1988581617954979845]'
+    // value: SerializeReferenceDropdownSample SRD.Sample.BigCircle
+    private static bool TryParsePrefabOverrideTypeFromString(string input, out UnityTypeData unityType)
+    {
+        unityType = default;
+
+        var match = prefabOverrideSerializeReferenceTypeRegex.Match(input);
+        if (match.Success == false)
+        {
+            return false;
+        }
+
+        var asm = match.Groups[1].Value;
+        var ns = match.Groups[2].Value;
+        var className = match.Groups[3].Value;
+        unityType = new UnityTypeData(className, ns, asm);
+
+        return true;
     }
 }

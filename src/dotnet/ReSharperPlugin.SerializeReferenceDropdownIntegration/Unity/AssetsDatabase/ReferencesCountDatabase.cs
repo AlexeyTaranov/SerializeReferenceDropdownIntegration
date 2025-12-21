@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -133,7 +134,8 @@ public class ReferencesCountDatabase
         description.Value = "1/2: Check All Unity Files";
         var allFiles = AssetsIterator.GetUnityFilesInAssetsFolder(solution);
 
-        var allTypes = new List<AssetsIterator.UnityReferenceTypeLineData>();
+        var referenceTypes = new List<AssetsIterator.UnityReferenceTypeLineData>();
+        var prefabOverrides = new List<AssetsIterator.UnityReferenceTypePrefabOverrideLineData>();
         //TODO: Parallel read files? 
         for (var i = 0; i < allFiles.Count; i++)
         {
@@ -146,12 +148,15 @@ public class ReferencesCountDatabase
             progress.Value = (float)(i + 1) / (float)allFiles.Count;
 
             var filePath = allFiles[i];
-            allTypes.Clear();
-            await AssetsIterator.FillReferenceTypesBlocksAsync(filePath, allTypes);
+
+            referenceTypes.Clear();
+            prefabOverrides.Clear();
+            await AssetsIterator.FillReferenceTypesBlocksAsync(filePath, referenceTypes, prefabOverrides);
+            var allTypes = referenceTypes.Select(t => t.Type).Concat(prefabOverrides.Select(t => t.Type));
             foreach (var checkType in allTypes)
             {
-                typeCount.TryGetValue(checkType.Type, out var count);
-                typeCount[checkType.Type] = count + 1;
+                typeCount.TryGetValue(checkType, out var count);
+                typeCount[checkType] = count + 1;
             }
         }
 

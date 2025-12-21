@@ -14,7 +14,12 @@ public class ModifyUnityAssetModel
     private readonly UnityTypeData oldType;
     private readonly UnityTypeData newType;
     private readonly ISolution solution;
-    private readonly Dictionary<string, IReadOnlyList<AssetsIterator.UnityReferenceTypeLineData>> targetPathTypes = new(); 
+    private readonly List<TypeReferenceData> targetTypeData = new();
+
+    private record TypeReferenceData(
+        string FilePath,
+        IReadOnlyList<AssetsIterator.UnityReferenceTypeLineData> References,
+        IReadOnlyList<AssetsIterator.UnityReferenceTypePrefabOverrideLineData> PrefabOverrides);
 
     public ModifyUnityAssetModel(UnityTypeData oldType, UnityTypeData newType, ISolution solution)
     {
@@ -28,9 +33,10 @@ public class ModifyUnityAssetModel
         var allUnityFiles = AssetsIterator.GetUnityFilesInAssetsFolder(solution);
 
         var totalCount = 0;
-        targetPathTypes.Clear();
+        targetTypeData.Clear();
 
-        var allTypes = new List<AssetsIterator.UnityReferenceTypeLineData>();
+        var allReferences = new List<AssetsIterator.UnityReferenceTypeLineData>();
+        var allPrefabOverrides = new List<AssetsIterator.UnityReferenceTypePrefabOverrideLineData>();
 
         foreach (var filePath in allUnityFiles)
         {
@@ -39,13 +45,17 @@ public class ModifyUnityAssetModel
                 return -1;
             }
 
-            allTypes.Clear();
-            await AssetsIterator.FillReferenceTypesBlocksAsync(filePath, allTypes);
-            var targetTypes = allTypes.Where(t => t.Type == oldType).ToArray();
-            if (targetTypes.Any())
+            allReferences.Clear();
+            allPrefabOverrides.Clear();
+
+            await AssetsIterator.FillReferenceTypesBlocksAsync(filePath, allReferences, allPrefabOverrides);
+
+            var targetReferences = allReferences.Where(t => t.Type == oldType).ToArray();
+            var targetPrefabOverrides = allPrefabOverrides.Where(t => t.Type == oldType).ToArray();
+            if (targetReferences.Any() || targetPrefabOverrides.Any())
             {
-                targetPathTypes[filePath] = targetTypes;
-                totalCount += targetTypes.Length;
+                targetTypeData.Add(new TypeReferenceData(filePath, targetReferences, targetPrefabOverrides));
+                totalCount += targetReferences.Length + targetPrefabOverrides.Length;
             }
         }
 
@@ -55,12 +65,28 @@ public class ModifyUnityAssetModel
     public async Task ModifyAllFilesAsync()
     {
         var allLines = new List<string>();
-        foreach (var targetTypePath in targetPathTypes)
+        foreach (var data in targetTypeData)
         {
-            var filePath = targetTypePath.Key;
             allLines.Clear();
-            allLines.AddRange(File.ReadAllLines(filePath));
-            foreach (var modifyTypeData in targetTypePath.Value)
+            allLines.AddRange(File.ReadAllLines(data.FilePath));
+
+            foreach (var prefabOverride in data.PrefabOverrides)
+            {
+                var oldLine = allLines[prefabOverride.LineIndex];
+
+                var fullTypeName = string.IsNullOrEmpty(newType.Namespace)
+                    ? newType.ClassName
+                    : $"{newType.AssemblyName}.{newType.ClassName}";
+
+                var newLine = AssetsIterator.prefabOverrideSerializeReferenceTypeRegex.Replace(
+                    oldLine,
+                    $"value: {newType.AssemblyName} {fullTypeName}"
+                );
+
+                allLines[prefabOverride.LineIndex] = newLine;
+            }
+
+            foreach (var modifyTypeData in data.References)
             {
                 var oldLineText = allLines[modifyTypeData.LineIndex];
                 if (modifyTypeData.MultiLine)
@@ -75,8 +101,9 @@ public class ModifyUnityAssetModel
 
                 allLines[modifyTypeData.LineIndex] = newLine;
             }
-            
-            File.WriteAllLines(filePath, allLines);
+
+
+            File.WriteAllLines(data.FilePath, allLines);
         }
     }
 }
