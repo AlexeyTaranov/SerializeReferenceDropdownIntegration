@@ -65,9 +65,12 @@ public class ReferencesCountDatabase
         //TODO: Check how to use lifetimes and cancellationTokens
         var refreshDatabaseLifetimeDefinition = Lifetime.Define(lifetime);
         var cancellationTokenSource = new CancellationTokenSource();
+        var refreshDatabaseHeader =
+            new Property<string>($"{nameof(RunRefreshDatabase)}::Refresh Header", String.Empty);
 
         var progress = BackgroundProgressBuilder.Create()
-            .WithHeader("Refresh SRD Database")
+            .WithTitle(Names.SRDShort)
+            .WithHeader(refreshDatabaseHeader)
             .WithProgress(refreshDatabaseProgressProperty)
             .AsCancelable(() =>
             {
@@ -85,7 +88,8 @@ public class ReferencesCountDatabase
             currentState.Value = DatabaseState.Refreshing;
             try
             {
-                var result = await FetchSerializeReferenceTypesCountAsync(progressProperty, cancellationToken);
+                var result = await FetchSerializeReferenceTypesCountAsync(progressProperty, refreshDatabaseHeader,
+                    cancellationToken);
                 if (result == null)
                 {
                     DropDatabase();
@@ -122,11 +126,14 @@ public class ReferencesCountDatabase
     }
 
     private async Task<Dictionary<UnityTypeData, int>> FetchSerializeReferenceTypesCountAsync(Property<double> progress,
+        Property<string> description,
         CancellationToken cancellationToken)
     {
         var typeCount = new Dictionary<UnityTypeData, int>();
+        description.Value = "1/2: Check All Unity Files";
         var allFiles = AssetsIterator.GetUnityFilesInAssetsFolder(solution);
 
+        var allTypes = new List<AssetsIterator.UnityReferenceTypeLineData>();
         //TODO: Parallel read files? 
         for (var i = 0; i < allFiles.Count; i++)
         {
@@ -135,34 +142,19 @@ public class ReferencesCountDatabase
                 return null;
             }
 
-            var filePath = allFiles[i];
+            description.Value = $"2/2: Read Unity files: {i}/{allFiles.Count}";
             progress.Value = (float)(i + 1) / (float)allFiles.Count;
-            await AssetsIterator.ReadReferencesBlockInUnityAsset(filePath, OnReferenceLineRead);
+
+            var filePath = allFiles[i];
+            allTypes.Clear();
+            await AssetsIterator.FillReferenceTypesBlocksAsync(filePath, allTypes);
+            foreach (var checkType in allTypes)
+            {
+                typeCount.TryGetValue(checkType.Type, out var count);
+                typeCount[checkType.Type] = count + 1;
+            }
         }
 
         return typeCount;
-
-        void OnReferenceLineRead(AssetsIterator.LineInfo lineInfo)
-        {
-            var match = Regex.Match(
-                lineInfo.Text,
-                @"class:\s*(?<class>[^,]+),\s*ns:\s*(?<ns>[^,]+),\s*asm:\s*(?<asm>[^}\s]+)"
-            );
-
-            if (match.Success)
-            {
-                var className = match.Groups["class"].Value;
-                var ns = match.Groups["ns"].Value;
-                var asm = match.Groups["asm"].Value;
-                var unityTypeData = new UnityTypeData()
-                {
-                    ClassName = className,
-                    Namespace = ns,
-                    AssemblyName = asm
-                };
-                typeCount.TryGetValue(unityTypeData, out var count);
-                typeCount[unityTypeData] = count + 1;
-            }
-        }
     }
 }

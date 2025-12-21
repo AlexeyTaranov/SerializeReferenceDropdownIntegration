@@ -14,6 +14,7 @@ public class ModifyUnityAssetModel
     private readonly UnityTypeData oldType;
     private readonly UnityTypeData newType;
     private readonly ISolution solution;
+    private readonly Dictionary<string, IReadOnlyList<AssetsIterator.UnityReferenceTypeLineData>> targetPathTypes = new(); 
 
     public ModifyUnityAssetModel(UnityTypeData oldType, UnityTypeData newType, ISolution solution)
     {
@@ -25,9 +26,11 @@ public class ModifyUnityAssetModel
     public async Task<int> FetchSerializeReferenceCountInAssetsFolderAsync(CancellationToken cancellationToken)
     {
         var allUnityFiles = AssetsIterator.GetUnityFilesInAssetsFolder(solution);
-        var oldTypeStr = oldType.BuildSerializeReferenceTypeString();
 
-        int totalCount = 0;
+        var totalCount = 0;
+        targetPathTypes.Clear();
+
+        var allTypes = new List<AssetsIterator.UnityReferenceTypeLineData>();
 
         foreach (var filePath in allUnityFiles)
         {
@@ -35,9 +38,15 @@ public class ModifyUnityAssetModel
             {
                 return -1;
             }
-            
-            var referenceCount = await AssetsIterator.CountInAllReferencesBlocksAsync(filePath, oldTypeStr);
-            totalCount += referenceCount;
+
+            allTypes.Clear();
+            await AssetsIterator.FillReferenceTypesBlocksAsync(filePath, allTypes);
+            var targetTypes = allTypes.Where(t => t.Type == oldType).ToArray();
+            if (targetTypes.Any())
+            {
+                targetPathTypes[filePath] = targetTypes;
+                totalCount += targetTypes.Length;
+            }
         }
 
         return totalCount;
@@ -45,36 +54,29 @@ public class ModifyUnityAssetModel
 
     public async Task ModifyAllFilesAsync()
     {
-        var allFiles = AssetsIterator.GetUnityFilesInAssetsFolder(solution);
-        
-        var modifyLines = new List<int>();
-        
-        var oldTypeString = oldType.BuildSerializeReferenceTypeString();
-        var newTypeString = newType.BuildSerializeReferenceTypeString();
-        
-        foreach (var filePath in allFiles)
+        var allLines = new List<string>();
+        foreach (var targetTypePath in targetPathTypes)
         {
-            modifyLines.Clear();
-            await ModifyReferenceBlock(filePath);
-        }
-
-        async Task ModifyReferenceBlock(string filePath)
-        {
-            await AssetsIterator.CountInAllReferencesBlocksAsync(filePath, oldTypeString, modifyLines);
-            if (modifyLines.Any() == false)
+            var filePath = targetTypePath.Key;
+            allLines.Clear();
+            allLines.AddRange(File.ReadAllLines(filePath));
+            foreach (var modifyTypeData in targetTypePath.Value)
             {
-                return;
-            }
+                var oldLineText = allLines[modifyTypeData.LineIndex];
+                if (modifyTypeData.MultiLine)
+                {
+                    var nextLineIndex = modifyTypeData.LineIndex + 1;
+                    oldLineText += allLines[nextLineIndex];
+                    allLines.RemoveAt(nextLineIndex);
+                }
 
-            var allLines = File.ReadAllLines(filePath);
-            foreach (var modifyLine in modifyLines)
-            {
-                allLines[modifyLine] = allLines[modifyLine].Replace(oldTypeString, newTypeString);
-            }
+                var newLine = AssetsIterator.serializeReferenceRegex.Replace(oldLineText,
+                    $"type: {{class: {newType.ClassName}, ns: {newType.Namespace}, asm: {newType.AssemblyName}}}");
 
+                allLines[modifyTypeData.LineIndex] = newLine;
+            }
+            
             File.WriteAllLines(filePath, allLines);
         }
     }
-
-
 }
