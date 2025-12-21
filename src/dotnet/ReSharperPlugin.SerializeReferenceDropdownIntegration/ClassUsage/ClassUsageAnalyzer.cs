@@ -62,7 +62,7 @@ public class ClassUsageAnalyzer : ElementProblemAnalyzer<IClassDeclaration>
 
             var dbState = countDatabase.CurrentState.Value;
 
-            var displayText = $"SRD: {dbState}";
+            var displayText = $"{Names.SRDShort}: {dbState}";
             var tooltip = displayText;
 
             if (dbState == ReferencesCountDatabase.DatabaseState.Filled)
@@ -70,7 +70,7 @@ public class ClassUsageAnalyzer : ElementProblemAnalyzer<IClassDeclaration>
                 var unityType = element.ExtractUnityTypeFromClassDeclaration();
                 var usageCount = countDatabase.GetUsagesCount(unityType);
 
-                displayText = $"SRD: {usageCount} usages";
+                displayText = $"{Names.SRDShort}: {usageCount} usages";
                 tooltip = $"SerializeReferenceDropdown: '{unityType.ClassName}' {usageCount} - usages in project";
             }
 

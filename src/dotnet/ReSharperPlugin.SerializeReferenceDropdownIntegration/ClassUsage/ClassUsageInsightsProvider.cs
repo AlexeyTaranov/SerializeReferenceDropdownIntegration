@@ -38,7 +38,7 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
     {
         if (countDatabase.CurrentState.Value != ReferencesCountDatabase.DatabaseState.Refreshing)
         {
-            var needRefreshDB = MessageBox.ShowYesNo("Need Refresh SRD Database?");
+            var needRefreshDB = MessageBox.ShowYesNo($"Need Refresh {Names.SRDShort} Database?");
             if (needRefreshDB)
             {
                 countDatabase.RunRefreshDatabase();
@@ -63,7 +63,7 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
     }
 
     public string ProviderId => nameof(ClassUsageInsightsProvider);
-    public string DisplayName => "SRD: Class Usages";
+    public string DisplayName => $"{Names.SRDShort}: Class Usages";
     public CodeVisionAnchorKind DefaultAnchor => CodeVisionAnchorKind.Top;
 
     public ICollection<CodeVisionRelativeOrdering> RelativeOrderings => new List<CodeVisionRelativeOrdering>()

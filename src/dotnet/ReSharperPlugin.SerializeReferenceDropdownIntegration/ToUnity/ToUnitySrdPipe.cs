@@ -28,7 +28,7 @@ public class ToUnitySrdPipe
         
         if (showOnce == false)
         {
-            MessageBox.ShowInfo("Check Unity window:)", "SRD DEV");
+            MessageBox.ShowInfo("Check Unity window:)", $"{Names.SRDShort}");
             showOnce = true;
         }
     }
