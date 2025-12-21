@@ -12,9 +12,9 @@ using JetBrains.ReSharper.Psi.Tree;
 using JetBrains.ReSharper.Refactorings.Rename;
 using JetBrains.Util;
 using JetBrains.Util.dataStructures;
-using ReSharperPlugin.SerializeReferenceDropdownIntegration.Unity;
+using ReSharperPlugin.SerializeReferenceDropdownIntegration.Unity.KnownTypes;
 
-namespace ReSharperPlugin.SerializeReferenceDropdownIntegration.Refactorings.Rename;
+namespace ReSharperPlugin.SerializeReferenceDropdownIntegration.Refactorings.Rename.MovedFrom;
 
 public class MovedFromAtomicRename : AtomicRenameBase
 {
@@ -35,8 +35,6 @@ public class MovedFromAtomicRename : AtomicRenameBase
     public override IRefactoringPage CreateRenamesConfirmationPage(IRenameWorkflow renameWorkflow,
         IProgressIndicator pi)
     {
-        // hide confirmation page only, refactoring should update shared document too otherwise
-        // we will get inconsistent change modification message box
         if (myModel.MovedFromRefactoringBehavior
             is MovedFromRefactoringBehavior.AddAndRemember
             or MovedFromRefactoringBehavior.DontAddAndRemember)
@@ -60,10 +58,8 @@ public class MovedFromAtomicRename : AtomicRenameBase
 
         //TODO Ask about remove old attribute? We can't use together two or more MovedFrom attributes
         // RemoveExistingAttributesWithNewName(classMemberDeclaration);
-        
         if (HasExistingMovedFromAttribute(classMemberDeclaration))
         {
-            // Make sure textual occurrence rename doesn't rename the existing attribute parameter
             RemoveFromTextualOccurrences(executer, classMemberDeclaration);
             return;
         }
@@ -74,14 +70,7 @@ public class MovedFromAtomicRename : AtomicRenameBase
             classMemberDeclaration.AddAttributeAfter(attribute, null);
     }
 
-    private void RemoveExistingAttributesWithNewName(IClassMemberDeclaration classMemberDeclaration)
-    {
-        var attributes = GetExistingFormerlySerializedAsAttributes(classMemberDeclaration, NewName);
-        foreach (var attribute in attributes)
-            classMemberDeclaration.RemoveAttribute(attribute);
-    }
-
-    private static IClassMemberDeclaration? GetDeclaration(ITypeMember? typeMember)
+    private static IClassMemberDeclaration GetDeclaration(ITypeMember typeMember)
     {
         var declarations = typeMember?.GetDeclarations();
         if (declarations?.Count == 1)
@@ -105,7 +94,7 @@ public class MovedFromAtomicRename : AtomicRenameBase
             if (attributeTypeElement == null)
                 continue;
 
-            if (Equals(attributeTypeElement.GetClrName(), KnownTypes.MovedFromAttribute))
+            if (Equals(attributeTypeElement.GetClrName(), KnownTypes.movedFromAttribute))
             {
                 var attributeInstance = attribute.GetAttributeInstance();
                 var nameParameter = attributeInstance.PositionParameter(0);
@@ -152,12 +141,12 @@ public class MovedFromAtomicRename : AtomicRenameBase
         }
     }
 
-    private IAttribute? CreateMovedFromAttribute(IClassMemberDeclaration owningNode,
+    private IAttribute CreateMovedFromAttribute(IClassMemberDeclaration owningNode,
         string oldClassName = null, string oldNamespace = null)
     {
         var module = owningNode.GetPsiModule();
         var elementFactory = CSharpElementFactory.GetInstance(owningNode);
-        var attributeType = myKnownTypesCache.GetByClrTypeName(KnownTypes.MovedFromAttribute, module);
+        var attributeType = myKnownTypesCache.GetByClrTypeName(KnownTypes.movedFromAttribute, module);
         var attributeTypeElement = attributeType.GetTypeElement();
         if (attributeTypeElement == null)
             return null;

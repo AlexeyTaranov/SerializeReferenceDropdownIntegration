@@ -21,3 +21,4 @@ output
 .vs
 _ReSharper*
 _dotTrace*
+.DS_Store

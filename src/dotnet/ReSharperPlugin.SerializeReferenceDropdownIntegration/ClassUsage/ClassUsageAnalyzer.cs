@@ -1,31 +1,32 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
+using JetBrains.Lifetimes;
 using JetBrains.ReSharper.Daemon.CodeInsights;
 using JetBrains.ReSharper.Feature.Services.Daemon;
 using JetBrains.ReSharper.Psi.CSharp.Tree;
 using JetBrains.ReSharper.Psi.Tree;
 using JetBrains.ReSharper.Psi.Util;
-using ReSharperPlugin.SerializeReferenceDropdownIntegration.Unity.SRD;
+using ReSharperPlugin.SerializeReferenceDropdownIntegration.Extensions;
+using ReSharperPlugin.SerializeReferenceDropdownIntegration.Unity.AssetsDatabase;
+using ReSharperPlugin.SerializeReferenceDropdownIntegration.Unity.ProjectDetector;
 
 namespace ReSharperPlugin.SerializeReferenceDropdownIntegration.ClassUsage;
 
-//TODO Move from problemAnalyzer to something else where usages works normally
+//TODO: Usage is not problem. Need only highlight on non-zero references count
 [ElementProblemAnalyzer(typeof(IClassDeclaration))]
 public class ClassUsageAnalyzer : ElementProblemAnalyzer<IClassDeclaration>
 {
     private readonly ClassUsageInsightsProvider codeInsightsProvider;
-    private readonly UnitySrdDatabaseLoader unitySrdDatabaseLoader;
-    private readonly UnityProjectDetector unityProjectDetector;
-
-    public static readonly Dictionary<string, string> shortTypeToFullType = new();
+    private readonly ReferencesCountDatabase countDatabase;
+    private readonly Lifetime lifetime;
 
     public ClassUsageAnalyzer(ClassUsageInsightsProvider codeInsightsProvider,
-        UnitySrdDatabaseLoader unitySrdDatabaseLoader, UnityProjectDetector unityProjectDetector)
+        ReferencesCountDatabase assetsSerializeReferencesCountDatabase,
+        Lifetime lifetime)
     {
         this.codeInsightsProvider = codeInsightsProvider;
-        this.unitySrdDatabaseLoader = unitySrdDatabaseLoader;
-        this.unityProjectDetector = unityProjectDetector;
+        this.countDatabase = assetsSerializeReferencesCountDatabase;
+        this.lifetime = lifetime;
     }
 
     protected override void Run(IClassDeclaration element, ElementProblemAnalyzerData data,
@@ -33,13 +34,7 @@ public class ClassUsageAnalyzer : ElementProblemAnalyzer<IClassDeclaration>
     {
         try
         {
-            if (unityProjectDetector.IsUnityProject() == false)
-            {
-                return;
-            }
-
-            unitySrdDatabaseLoader.RefreshDatabase();
-            if (unitySrdDatabaseLoader.IsAvailableDatabase == false)
+            if (element.DeclaredElement?.IsFromUnityProject() != true)
             {
                 return;
             }
@@ -59,33 +54,38 @@ public class ClassUsageAnalyzer : ElementProblemAnalyzer<IClassDeclaration>
 
             var noParentClass = superClassNames.Length == 1 && superClassNames.First().FullName == "System.Object";
 
-            var anySuperClass = element.SuperTypeUsageNodes.Any(); 
+            var anySuperClass = element.SuperTypeUsageNodes.Any();
             if (noParentClass && anySuperClass == false)
             {
                 return;
             }
 
-            var clrName = element.DeclaredElement.GetClrName();
-            var name = clrName.FullName;
-            var asmName = element.GetPsiModule().ContainingProjectModule.Name;
-            var type = TypeExtensions.MakeType(name, asmName);
-            unitySrdDatabaseLoader.TypesCount.TryGetValue(type, out var usageCount);
-            shortTypeToFullType[clrName.ShortName] = type;
+            var dbState = countDatabase.CurrentState.Value;
 
-            //TODO Need check usages with MovedFrom attribute
-            var tooltip = $"SerializeReferenceDropdown: '{clrName.ShortName}' {usageCount} - usages in project";
+            var displayText = $"{Names.SRDShort}: {dbState}";
+            var tooltip = displayText;
+
+            if (dbState == ReferencesCountDatabase.DatabaseState.Filled)
+            {
+                var unityType = element.ExtractUnityTypeFromClassDeclaration();
+                var usageCount = countDatabase.GetUsagesCount(unityType);
+
+                displayText = $"{Names.SRDShort}: {usageCount} usages";
+                tooltip = $"SerializeReferenceDropdown: '{unityType.ClassName}' {usageCount} - usages in project";
+            }
+
             consumer.AddHighlighting(
                 new CodeInsightsHighlighting(
                     element.GetNameDocumentRange(),
-                    displayText: $"SRD: {usageCount} usages",
+                    displayText: displayText,
                     tooltipText: tooltip,
-                    moreText: String.Empty,
+                    moreText: "More text",
                     codeInsightsProvider,
                     element.DeclaredElement, null));
         }
         catch (Exception e)
         {
-            Log.DevError(e.ToString());
+            //
         }
     }
 }

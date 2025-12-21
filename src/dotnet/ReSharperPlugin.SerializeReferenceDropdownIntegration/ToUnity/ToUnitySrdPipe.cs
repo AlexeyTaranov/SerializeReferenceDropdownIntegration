@@ -1,6 +1,7 @@
 using System;
 using System.IO.Pipes;
 using System.Text;
+using System.Threading.Tasks;
 using JetBrains.Application.Parts;
 using JetBrains.ProjectModel;
 using JetBrains.Util;
@@ -12,8 +13,27 @@ public class ToUnitySrdPipe
 {
     private const string PipeName = "SerializeReferenceDropdownIntegration";
     private bool showOnce;
+    private bool? needOpenSearchTool;
 
     public void OpenUnitySearchToolWindowWithType(string typeName)
+    {
+        needOpenSearchTool ??= MessageBox.ShowYesNoCancel("Need open Search Tool in this session?");
+
+        if (needOpenSearchTool != true)
+        {
+            return;
+        }
+
+        Task.Run(() => SendMessageToPipe(typeName));
+        
+        if (showOnce == false)
+        {
+            MessageBox.ShowInfo("Check Unity window:)", $"{Names.SRDShort}");
+            showOnce = true;
+        }
+    }
+
+    private void SendMessageToPipe(string typeName)
     {
         try
         {
@@ -23,13 +43,8 @@ public class ToUnitySrdPipe
             var buffer = Encoding.UTF8.GetBytes(command);
             client.Write(buffer, 0, buffer.Length);
             client.Flush();
-            if (showOnce == false)
-            {
-                MessageBox.ShowInfo("Check Unity window:)", "SRD DEV");
-                showOnce = true;
-            }
         }
-        catch (Exception e)
+        catch (Exception _)
         {
             //
         }

@@ -5,7 +5,7 @@ using JetBrains.Lifetimes;
 using JetBrains.ReSharper.Feature.Services.Refactorings;
 using JetBrains.Rider.Model.UIAutomation;
 
-namespace ReSharperPlugin.SerializeReferenceDropdownIntegration.Refactorings.Rename;
+namespace ReSharperPlugin.SerializeReferenceDropdownIntegration.Refactorings.Rename.MovedFrom;
 
 public class MovedFromRefactoringPage : SingleBeRefactoringPage
 {

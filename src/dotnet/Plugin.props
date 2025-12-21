@@ -5,7 +5,7 @@
     <!-- Keep in sync with ProductVersion in gradle.properties -->
     <SdkVersion>2025.2.0</SdkVersion>
 
-    <Title>SerializeReferenceDropdownIntegration</Title>
+    <Title>SerializeReferenceDropdownIntegration (SRD)</Title>
     <Description>Integration for unity package: SerializeReferenceDropdown</Description>
 
     <Authors>Alexey Taranov</Authors>
