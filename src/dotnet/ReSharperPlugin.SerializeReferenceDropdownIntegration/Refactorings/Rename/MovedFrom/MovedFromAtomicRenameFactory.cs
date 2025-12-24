@@ -22,7 +22,7 @@ public class MovedFromAtomicRenameFactory : IAtomicRenameFactory
         //TODO Support rename namespaces?
         var isClass = declaredElement.IsClass();
 
-        return isClass || declaredElement.IsFromUnityProject();
+        return isClass && declaredElement.IsFromUnityProject();
     }
 
     public RenameAvailabilityCheckResult CheckRenameAvailability(IDeclaredElement element)
