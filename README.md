@@ -18,13 +18,16 @@ Also see Unity package https://github.com/AlexeyTaranov/SerializeReferenceDropdo
 
 https://github.com/user-attachments/assets/e60d8c04-5dc9-4d14-b847-d8157b939d45
 
-## Refactoring: Add MovedFrom Attribute with rename
+TODO: Show all unity assets on type click
 
+## Refactoring: Add MovedFrom Attribute with rename
 ### WIP Feature
 
 With default rename class you can add MovedFrom attribute.
 
 https://github.com/user-attachments/assets/aae2dd53-977a-4138-9f4a-ca80e02ce6f1
+
+TODO: support rename namespaces
 
 ## Refactoring: Modify File Content with rename
 
@@ -34,6 +37,8 @@ With default rename class you can modify all serialize references types.
 This feature will modify all YAML Unity assets data.
 
 https://github.com/user-attachments/assets/3da99091-0787-4b70-ae32-42140a0f469e
+
+TODO: make undo, support rename namespaces
 
 ### Installation:
 
