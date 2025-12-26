@@ -63,9 +63,7 @@ public class ReferencesCountDatabase
         var refreshDatabaseProgressProperty =
             new Property<double>($"{nameof(RunRefreshDatabase)}::Progress", 0).EnsureNotOutside(0.0, 1.0);
 
-        //TODO: Check how to use lifetimes and cancellationTokens
         var refreshDatabaseLifetimeDefinition = Lifetime.Define(lifetime);
-        var cancellationTokenSource = new CancellationTokenSource();
         var refreshDatabaseHeader =
             new Property<string>($"{nameof(RunRefreshDatabase)}::Refresh Header", String.Empty);
 
@@ -75,14 +73,14 @@ public class ReferencesCountDatabase
             .WithProgress(refreshDatabaseProgressProperty)
             .AsCancelable(() =>
             {
-                cancellationTokenSource.Cancel();
                 refreshDatabaseLifetimeDefinition.Terminate();
             })
             .Build();
         myBackgroundProgressManager.AddNewTask(refreshDatabaseLifetimeDefinition.Lifetime, progress);
 
         myShellLocks.StartBackgroundAsync(refreshDatabaseLifetimeDefinition.Lifetime,
-            () => RefreshDatabase(refreshDatabaseProgressProperty, cancellationTokenSource.Token)).NoAwait();
+            () => RefreshDatabase(refreshDatabaseProgressProperty,
+                refreshDatabaseLifetimeDefinition.Lifetime.ToCancellationToken())).NoAwait();
 
         async Task RefreshDatabase(Property<double> progressProperty, CancellationToken cancellationToken)
         {

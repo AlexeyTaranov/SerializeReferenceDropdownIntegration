@@ -1,5 +1,4 @@
 using System;
-using System.Threading;
 using System.Threading.Tasks;
 using JetBrains.Collections.Viewable;
 using JetBrains.DataFlow;
@@ -16,7 +15,7 @@ public enum ModifyYamlShowBehaviour
     DontShow
 }
 
-public class ModifyUnityAssetRefactoringPage : SingleBeRefactoringPage, IDisposable
+public class ModifyUnityAssetRefactoringPage : SingleBeRefactoringPage
 {
     public static ModifyYamlShowBehaviour ShowBehaviour { get; private set; }
 
@@ -25,13 +24,10 @@ public class ModifyUnityAssetRefactoringPage : SingleBeRefactoringPage, IDisposa
 
     private readonly Action fetchReferencesCount;
 
-    private CancellationTokenSource closePageCancellationToken;
 
     // TODO Replace strings with resourceManager?
     public ModifyUnityAssetRefactoringPage(Lifetime lifetime, ModifyUnityAssetModel model) : base(lifetime)
     {
-        closePageCancellationToken = new CancellationTokenSource();
-
         //TODO Need implement UNDO
         myContent = BeControls.BeLabel("This feature without UNDO! Keep modifications in VCS!").InAutoGrid();
 
@@ -89,7 +85,7 @@ public class ModifyUnityAssetRefactoringPage : SingleBeRefactoringPage, IDisposa
             fetchFilesCountVisibility.Value = false;
 
             var result = await Task.Run(() =>
-                model.FetchSerializeReferenceCountInAssetsFolderAsync(closePageCancellationToken.Token));
+                model.FetchSerializeReferenceCountInAssetsFolderAsync(lifetime.ToCancellationToken()));
 
             referencesCount.Value = result;
             fetchingFilesCount.Value = false;
@@ -117,10 +113,6 @@ public class ModifyUnityAssetRefactoringPage : SingleBeRefactoringPage, IDisposa
         ShowBehaviour = hidePageOnThisSession.Value
             ? ModifyYamlShowBehaviour.DontShow
             : ModifyYamlShowBehaviour.ShowAlways;
-
-        closePageCancellationToken.Cancel();
-        closePageCancellationToken.Dispose();
-        closePageCancellationToken = null;
     }
 
 
@@ -129,10 +121,4 @@ public class ModifyUnityAssetRefactoringPage : SingleBeRefactoringPage, IDisposa
     public override string Title => "Modify YAML content in Assets directory";
 
     public override string Description => "Modify assets content in Unity Project";
-
-    public void Dispose()
-    {
-        hidePageOnThisSession?.Dispose();
-        closePageCancellationToken?.Dispose();
-    }
 }
