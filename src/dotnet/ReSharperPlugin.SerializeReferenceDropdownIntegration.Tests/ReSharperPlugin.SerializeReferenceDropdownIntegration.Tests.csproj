@@ -17,6 +17,7 @@
   <ItemGroup>
     <Compile Include="..\ReSharperPlugin.SerializeReferenceDropdownIntegration\Data\UnityTypeData.cs" Link="Production\Data\UnityTypeData.cs" />
     <Compile Include="..\ReSharperPlugin.SerializeReferenceDropdownIntegration\Unity\AssetsDatabase\UnityAssetReferenceParser.cs" Link="Production\Unity\AssetsDatabase\UnityAssetReferenceParser.cs" />
+    <Compile Include="..\ReSharperPlugin.SerializeReferenceDropdownIntegration\Unity\AssetsDatabase\UnityAssetReferenceRewriter.cs" Link="Production\Unity\AssetsDatabase\UnityAssetReferenceRewriter.cs" />
   </ItemGroup>
 
   <ItemGroup>

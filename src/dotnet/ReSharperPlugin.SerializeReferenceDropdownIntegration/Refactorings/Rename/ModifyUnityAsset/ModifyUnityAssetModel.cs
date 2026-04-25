@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -42,46 +41,9 @@ public class ModifyUnityAssetModel
 
     public Task ModifyAllFilesAsync()
     {
-        var allLines = new List<string>();
         foreach (var data in targetTypeData)
         {
-            allLines.Clear();
-            allLines.AddRange(File.ReadAllLines(data.FilePath));
-
-            foreach (var prefabOverride in data.PrefabOverrides)
-            {
-                var oldLine = allLines[prefabOverride.LineIndex];
-
-                var fullTypeName = string.IsNullOrEmpty(newType.Namespace)
-                    ? newType.ClassName
-                    : $"{newType.Namespace}.{newType.ClassName}";
-
-                var newLine = UnityAssetReferenceParser.PrefabOverrideSerializeReferenceTypeRegex.Replace(
-                    oldLine,
-                    $"value: {newType.AssemblyName} {fullTypeName}"
-                );
-
-                allLines[prefabOverride.LineIndex] = newLine;
-            }
-
-            foreach (var modifyTypeData in data.References)
-            {
-                var oldLineText = allLines[modifyTypeData.LineIndex];
-                if (modifyTypeData.MultiLine)
-                {
-                    var nextLineIndex = modifyTypeData.LineIndex + 1;
-                    oldLineText += allLines[nextLineIndex];
-                    allLines.RemoveAt(nextLineIndex);
-                }
-
-                var newLine = UnityAssetReferenceParser.SerializeReferenceRegex.Replace(oldLineText,
-                    $"type: {{class: {newType.ClassName}, ns: {newType.Namespace}, asm: {newType.AssemblyName}}}");
-
-                allLines[modifyTypeData.LineIndex] = newLine;
-            }
-
-
-            File.WriteAllLines(data.FilePath, allLines);
+            UnityAssetReferenceRewriter.RewriteFile(data.FilePath, data.References, data.PrefabOverrides, newType);
         }
 
         return Task.CompletedTask;
