@@ -37,11 +37,13 @@ public class ModifyUnityAssetRefactoringPage : SingleBeRefactoringPage
         myContent.AddElement(new BeSpacer());
 
         var filesCountLabel = BeControls.BeLabel("?");
+        var previewLabel = BeControls.BeLabel("Preview: not loaded");
         var referencesCount = new Property<int>("References count in assets folder", -1);
         var fetchingFilesCount = new Property<bool>("Fetching files count", false);
         referencesCount.PropertyChanged += (sender, args) => filesCountLabel.SetText(GetFilesCountText());
         fetchingFilesCount.PropertyChanged += (sender, args) => filesCountLabel.SetText(GetFilesCountText());
         myContent.AddElement(filesCountLabel);
+        myContent.AddElement(previewLabel);
 
         var fetchFilesCountVisibility = new ViewableProperty<bool>(true);
         var modifyFilesVisibility = new ViewableProperty<bool>(false);
@@ -78,8 +80,12 @@ public class ModifyUnityAssetRefactoringPage : SingleBeRefactoringPage
                 return mainText + "PENDING";
             }
 
-            var filesCountText = referencesCount.Value > -1 ? referencesCount.Value.ToString() : "NEED COUNT";
-            return mainText + filesCountText;
+            if (referencesCount.Value < 0)
+            {
+                return mainText + "NEED COUNT";
+            }
+
+            return $"{mainText}{referencesCount.Value} changes in {model.PreviewFilesCount} files";
         }
 
         async Task FetchCountAsync()
@@ -91,6 +97,7 @@ public class ModifyUnityAssetRefactoringPage : SingleBeRefactoringPage
                 model.FetchSerializeReferenceCountInAssetsFolderAsync(lifetime.ToCancellationToken()));
 
             referencesCount.Value = result;
+            previewLabel.SetText(model.BuildPreviewText());
             fetchingFilesCount.Value = false;
             modifyFilesVisibility.Value = result > 0;
         }

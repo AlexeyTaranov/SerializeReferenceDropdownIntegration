@@ -32,6 +32,31 @@ public class UnityAssetReferenceRewriterTests
     }
 
     [Test]
+    public async Task PreviewChangesDescribesCirclePrefabRewrite()
+    {
+        var fixturePath = GetFixturePath("Test Circle Prefab.prefab");
+        var references = new List<UnityReferenceTypeLineData>();
+        var prefabOverrides = new List<UnityReferenceTypePrefabOverrideLineData>();
+        await UnityAssetReferenceParser.FillReferenceTypesBlocksAsync(fixturePath, references, prefabOverrides);
+
+        var oldType = new UnityTypeData("Circle", "SRD.Sample", "SerializeReferenceDropdownSample");
+        var newType = oldType with { ClassName = "RenamedCircle" };
+        var changes = UnityAssetReferenceRewriter.PreviewChanges(
+            File.ReadAllLines(fixturePath),
+            references.Where(reference => reference.Type == oldType).ToArray(),
+            prefabOverrides.Where(prefabOverride => prefabOverride.Type == oldType).ToArray(),
+            newType);
+
+        Assert.That(changes, Has.Count.EqualTo(1));
+        Assert.That(changes[0].Kind, Is.EqualTo(UnityAssetReferenceChangeKind.SerializeReference));
+        Assert.That(changes[0].LineIndex, Is.EqualTo(52));
+        Assert.That(changes[0].OldType, Is.EqualTo(oldType));
+        Assert.That(changes[0].NewType, Is.EqualTo(newType));
+        Assert.That(changes[0].OldLines.Single(), Does.Contain("type: {class: Circle, ns: SRD.Sample, asm: SerializeReferenceDropdownSample}"));
+        Assert.That(changes[0].NewLines.Single(), Does.Contain("type: {class: RenamedCircle, ns: SRD.Sample, asm: SerializeReferenceDropdownSample}"));
+    }
+
+    [Test]
     public void RewritesPrefabOverrideType()
     {
         var oldType = new UnityTypeData("Circle", "SRD.Sample", "SerializeReferenceDropdownSample");
@@ -42,12 +67,15 @@ public class UnityAssetReferenceRewriterTests
             "      value: SerializeReferenceDropdownSample SRD.Sample.Circle"
         };
 
-        var rewrittenLines = UnityAssetReferenceRewriter.RewriteLines(
+        var changes = UnityAssetReferenceRewriter.PreviewChanges(
             lines,
             new UnityReferenceTypeLineData[0],
             new[] { new UnityReferenceTypePrefabOverrideLineData(oldType, 1) },
             newType);
+        var rewrittenLines = UnityAssetReferenceRewriter.ApplyChanges(lines, changes);
 
+        Assert.That(changes, Has.Count.EqualTo(1));
+        Assert.That(changes[0].Kind, Is.EqualTo(UnityAssetReferenceChangeKind.PrefabOverride));
         Assert.That(rewrittenLines[1], Is.EqualTo("      value: SerializeReferenceDropdownSample SRD.Sample.RenamedCircle"));
     }
 
