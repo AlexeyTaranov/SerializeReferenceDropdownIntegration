@@ -1,16 +1,23 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
+# 
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReSharperPlugin.SerializeReferenceDropdownIntegration.Rider", "src\dotnet\ReSharperPlugin.SerializeReferenceDropdownIntegration\ReSharperPlugin.SerializeReferenceDropdownIntegration.Rider.csproj", "{084172D1-A9C6-46D0-96AD-05C5B09A5E5D}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "misc", "misc", "{4A9ABB95-3762-448B-B5BF-099E46DB22DE}"
-ProjectSection(SolutionItems) = preProject
-	src\dotnet\Plugin.props = src\dotnet\Plugin.props
-	README.md = README.md
-	CHANGELOG.md = CHANGELOG.md
-	src\rider\main\resources\META-INF\plugin.xml = src\rider\main\resources\META-INF\plugin.xml
-	build.gradle.kts = build.gradle.kts
-	gradle.properties = gradle.properties
-EndProjectSection
+	ProjectSection(SolutionItems) = preProject
+		src\dotnet\Plugin.props = src\dotnet\Plugin.props
+		README.md = README.md
+		CHANGELOG.md = CHANGELOG.md
+		src\rider\main\resources\META-INF\plugin.xml = src\rider\main\resources\META-INF\plugin.xml
+		build.gradle.kts = build.gradle.kts
+		gradle.properties = gradle.properties
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{68767CC0-A47C-4485-A8F6-C6EF47218F01}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "dotnet", "dotnet", "{6542CAF4-21F9-4A8F-8594-019EE4B8986D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReSharperPlugin.SerializeReferenceDropdownIntegration.Tests", "src\dotnet\ReSharperPlugin.SerializeReferenceDropdownIntegration.Tests\ReSharperPlugin.SerializeReferenceDropdownIntegration.Tests.csproj", "{BECB78BF-A119-4F0A-A64A-AAA9BCC8B8B6}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -22,5 +29,13 @@ Global
 		{084172D1-A9C6-46D0-96AD-05C5B09A5E5D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{084172D1-A9C6-46D0-96AD-05C5B09A5E5D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{084172D1-A9C6-46D0-96AD-05C5B09A5E5D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BECB78BF-A119-4F0A-A64A-AAA9BCC8B8B6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BECB78BF-A119-4F0A-A64A-AAA9BCC8B8B6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BECB78BF-A119-4F0A-A64A-AAA9BCC8B8B6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BECB78BF-A119-4F0A-A64A-AAA9BCC8B8B6}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{6542CAF4-21F9-4A8F-8594-019EE4B8986D} = {68767CC0-A47C-4485-A8F6-C6EF47218F01}
+		{BECB78BF-A119-4F0A-A64A-AAA9BCC8B8B6} = {6542CAF4-21F9-4A8F-8594-019EE4B8986D}
 	EndGlobalSection
 EndGlobal

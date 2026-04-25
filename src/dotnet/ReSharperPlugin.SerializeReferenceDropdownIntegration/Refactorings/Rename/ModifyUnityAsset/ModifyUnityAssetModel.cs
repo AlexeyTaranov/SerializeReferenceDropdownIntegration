@@ -56,7 +56,7 @@ public class ModifyUnityAssetModel
                     ? newType.ClassName
                     : $"{newType.Namespace}.{newType.ClassName}";
 
-                var newLine = AssetsIterator.prefabOverrideSerializeReferenceTypeRegex.Replace(
+                var newLine = UnityAssetReferenceParser.PrefabOverrideSerializeReferenceTypeRegex.Replace(
                     oldLine,
                     $"value: {newType.AssemblyName} {fullTypeName}"
                 );
@@ -74,7 +74,7 @@ public class ModifyUnityAssetModel
                     allLines.RemoveAt(nextLineIndex);
                 }
 
-                var newLine = AssetsIterator.serializeReferenceRegex.Replace(oldLineText,
+                var newLine = UnityAssetReferenceParser.SerializeReferenceRegex.Replace(oldLineText,
                     $"type: {{class: {newType.ClassName}, ns: {newType.Namespace}, asm: {newType.AssemblyName}}}");
 
                 allLines[modifyTypeData.LineIndex] = newLine;

@@ -16,8 +16,8 @@ public class UnityAssetReferenceScanner
 {
     public readonly record struct TypeReferenceData(
         string FilePath,
-        IReadOnlyList<AssetsIterator.UnityReferenceTypeLineData> References,
-        IReadOnlyList<AssetsIterator.UnityReferenceTypePrefabOverrideLineData> PrefabOverrides);
+        IReadOnlyList<UnityReferenceTypeLineData> References,
+        IReadOnlyList<UnityReferenceTypePrefabOverrideLineData> PrefabOverrides);
 
     private readonly ISolution solution;
     private readonly PluginDiagnostics diagnostics;
@@ -54,8 +54,8 @@ public class UnityAssetReferenceScanner
         var typeCount = new Dictionary<UnityTypeData, int>();
         description.Value = "1/2: Check All Unity Files";
 
-        var referenceTypes = new List<AssetsIterator.UnityReferenceTypeLineData>();
-        var prefabOverrides = new List<AssetsIterator.UnityReferenceTypePrefabOverrideLineData>();
+        var referenceTypes = new List<UnityReferenceTypeLineData>();
+        var prefabOverrides = new List<UnityReferenceTypePrefabOverrideLineData>();
         for (var i = 0; i < allFiles.Count; i++)
         {
             if (cancellationToken.IsCancellationRequested)
@@ -68,7 +68,7 @@ public class UnityAssetReferenceScanner
 
             referenceTypes.Clear();
             prefabOverrides.Clear();
-            await AssetsIterator.FillReferenceTypesBlocksAsync(allFiles[i], referenceTypes, prefabOverrides);
+            await UnityAssetReferenceParser.FillReferenceTypesBlocksAsync(allFiles[i], referenceTypes, prefabOverrides);
 
             foreach (var checkType in referenceTypes.Select(t => t.Type).Concat(prefabOverrides.Select(t => t.Type)))
             {
@@ -95,8 +95,8 @@ public class UnityAssetReferenceScanner
         }
 
         var targetTypeData = new List<TypeReferenceData>();
-        var allReferences = new List<AssetsIterator.UnityReferenceTypeLineData>();
-        var allPrefabOverrides = new List<AssetsIterator.UnityReferenceTypePrefabOverrideLineData>();
+        var allReferences = new List<UnityReferenceTypeLineData>();
+        var allPrefabOverrides = new List<UnityReferenceTypePrefabOverrideLineData>();
 
         foreach (var filePath in allUnityFiles)
         {
@@ -108,7 +108,7 @@ public class UnityAssetReferenceScanner
             allReferences.Clear();
             allPrefabOverrides.Clear();
 
-            await AssetsIterator.FillReferenceTypesBlocksAsync(filePath, allReferences, allPrefabOverrides);
+            await UnityAssetReferenceParser.FillReferenceTypesBlocksAsync(filePath, allReferences, allPrefabOverrides);
 
             var targetReferences = allReferences.Where(t => t.Type == targetType).ToArray();
             var targetPrefabOverrides = allPrefabOverrides.Where(t => t.Type == targetType).ToArray();
