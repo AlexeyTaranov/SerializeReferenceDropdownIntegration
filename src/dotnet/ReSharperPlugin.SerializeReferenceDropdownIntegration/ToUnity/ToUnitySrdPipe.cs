@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using JetBrains.Application.Parts;
 using JetBrains.ProjectModel;
 using JetBrains.Util;
+using ReSharperPlugin.SerializeReferenceDropdownIntegration.Infrastructure;
 
 namespace ReSharperPlugin.SerializeReferenceDropdownIntegration.ToUnity;
 
@@ -12,14 +13,22 @@ namespace ReSharperPlugin.SerializeReferenceDropdownIntegration.ToUnity;
 public class ToUnitySrdPipe
 {
     private const string PipeName = "SerializeReferenceDropdownIntegration";
+    private readonly PluginSessionSettings sessionSettings;
+    private readonly PluginDiagnostics diagnostics;
     private bool showOnce;
-    private bool? needOpenSearchTool;
+
+    public ToUnitySrdPipe(PluginSessionSettings sessionSettings, PluginDiagnostics diagnostics)
+    {
+        this.sessionSettings = sessionSettings;
+        this.diagnostics = diagnostics;
+    }
 
     public void OpenUnitySearchToolWindowWithType(string typeName)
     {
-        needOpenSearchTool ??= MessageBox.ShowYesNoCancel("Need open Search Tool in this session?");
+        sessionSettings.NeedOpenSearchTool ??= MessageBox.ShowYesNoCancel("Need open Search Tool in this session?",
+            Names.SRDShort);
 
-        if (needOpenSearchTool != true)
+        if (sessionSettings.NeedOpenSearchTool != true)
         {
             return;
         }
@@ -46,7 +55,9 @@ public class ToUnitySrdPipe
         }
         catch (Exception _)
         {
-            //
+            diagnostics.Error($"Failed to send type '{typeName}' to Unity pipe '{PipeName}'.", _);
+            MessageBox.ShowError("Unable to contact the Unity SRD bridge. Make sure Unity is running and the SRD package is loaded.",
+                Names.SRDShort);
         }
     }
 }

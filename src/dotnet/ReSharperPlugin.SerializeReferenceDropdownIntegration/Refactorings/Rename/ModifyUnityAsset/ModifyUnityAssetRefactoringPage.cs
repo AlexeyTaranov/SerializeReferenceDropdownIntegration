@@ -6,6 +6,8 @@ using JetBrains.IDE.UI.Extensions;
 using JetBrains.Lifetimes;
 using JetBrains.ReSharper.Feature.Services.Refactorings;
 using JetBrains.Rider.Model.UIAutomation;
+using JetBrains.Util;
+using ReSharperPlugin.SerializeReferenceDropdownIntegration.Infrastructure;
 
 namespace ReSharperPlugin.SerializeReferenceDropdownIntegration.Refactorings.Rename.ModifyUnityAsset;
 
@@ -17,17 +19,18 @@ public enum ModifyYamlShowBehaviour
 
 public class ModifyUnityAssetRefactoringPage : SingleBeRefactoringPage
 {
-    public static ModifyYamlShowBehaviour ShowBehaviour { get; private set; }
-
     private readonly BeGrid myContent;
     private readonly IProperty<bool> hidePageOnThisSession;
+    private readonly PluginSessionSettings sessionSettings;
 
     private readonly Action fetchReferencesCount;
 
 
     // TODO Replace strings with resourceManager?
-    public ModifyUnityAssetRefactoringPage(Lifetime lifetime, ModifyUnityAssetModel model) : base(lifetime)
+    public ModifyUnityAssetRefactoringPage(Lifetime lifetime, ModifyUnityAssetModel model,
+        PluginSessionSettings sessionSettings) : base(lifetime)
     {
+        this.sessionSettings = sessionSettings;
         //TODO Need implement UNDO
         myContent = BeControls.BeLabel("This feature without UNDO! Keep modifications in VCS!").InAutoGrid();
 
@@ -64,7 +67,7 @@ public class ModifyUnityAssetRefactoringPage : SingleBeRefactoringPage
         
         
         hidePageOnThisSession = new Property<bool>("Hide modify file on this session",
-            ShowBehaviour == ModifyYamlShowBehaviour.DontShow);
+            sessionSettings.ModifyYamlShowBehaviour == ModifyYamlShowBehaviour.DontShow);
         myContent.AddElement(hidePageOnThisSession.GetBeCheckBox(lifetime, "Hide this window"));
 
         string GetFilesCountText()
@@ -76,7 +79,7 @@ public class ModifyUnityAssetRefactoringPage : SingleBeRefactoringPage
             }
 
             var filesCountText = referencesCount.Value > -1 ? referencesCount.Value.ToString() : "NEED COUNT";
-            return $" {filesCountText}";
+            return mainText + filesCountText;
         }
 
         async Task FetchCountAsync()
@@ -99,7 +102,18 @@ public class ModifyUnityAssetRefactoringPage : SingleBeRefactoringPage
             modifyFilesVisibility.Value = false;
             modifiedFilesLabelVisibility.Value = true;
 
-            await Task.Run(model.ModifyAllFilesAsync);
+            try
+            {
+                await Task.Run(model.ModifyAllFilesAsync);
+            }
+            catch (Exception e)
+            {
+                model.LogModificationFailure(e);
+                modifiedFilesLabel.SetText("Modified files: FAILED");
+                MessageBox.ShowError("Failed to modify Unity assets. Check the log for details.", Names.SRDShort);
+                ContinueEnabled.Value = true;
+                return;
+            }
 
             ContinueEnabled.Value = true;
             modifiedFilesLabel.SetText("Modified files: COMPLETE");
@@ -110,13 +124,13 @@ public class ModifyUnityAssetRefactoringPage : SingleBeRefactoringPage
 
     public override void Commit()
     {
-        ShowBehaviour = hidePageOnThisSession.Value
+        sessionSettings.ModifyYamlShowBehaviour = hidePageOnThisSession.Value
             ? ModifyYamlShowBehaviour.DontShow
             : ModifyYamlShowBehaviour.ShowAlways;
     }
 
 
-    public override bool DoNotShow => ShowBehaviour == ModifyYamlShowBehaviour.DontShow;
+    public override bool DoNotShow => sessionSettings.ModifyYamlShowBehaviour == ModifyYamlShowBehaviour.DontShow;
 
     public override string Title => "Modify YAML content in Assets directory";
 

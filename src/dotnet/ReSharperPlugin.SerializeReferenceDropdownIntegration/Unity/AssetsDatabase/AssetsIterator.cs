@@ -30,6 +30,11 @@ public static class AssetsIterator
     public static IReadOnlyList<string> GetUnityFilesInAssetsFolder(ISolution solution)
     {
         var unityAssetsPath = Path.Combine(solution.SolutionDirectory.FullPath, "Assets");
+        if (!Directory.Exists(unityAssetsPath))
+        {
+            return [];
+        }
+
         var allUnityFiles = Directory.EnumerateFiles(
                 unityAssetsPath,
                 "*.*",

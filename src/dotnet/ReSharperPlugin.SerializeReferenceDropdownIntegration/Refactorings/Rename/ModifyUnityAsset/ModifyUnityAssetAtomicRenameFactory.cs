@@ -1,8 +1,11 @@
 using System.Collections.Generic;
 using JetBrains.Application;
+using JetBrains.ProjectModel;
 using JetBrains.ReSharper.Feature.Services.Refactorings.Specific.Rename;
 using JetBrains.ReSharper.Psi;
 using JetBrains.ReSharper.Psi.VB.Util;
+using ReSharperPlugin.SerializeReferenceDropdownIntegration.Infrastructure;
+using ReSharperPlugin.SerializeReferenceDropdownIntegration.Unity.AssetsDatabase;
 using ReSharperPlugin.SerializeReferenceDropdownIntegration.Unity.ProjectDetector;
 
 namespace ReSharperPlugin.SerializeReferenceDropdownIntegration.Refactorings.Rename.ModifyUnityAsset;
@@ -36,6 +39,11 @@ public class ModifyUnityAssetAtomicRenameFactory : IAtomicRenameFactory
 
         renameDeclaredElements.Add(declaredElement.ShortName);
         var solution = declaredElement.GetSolution();
-        return [new ModifyUnityAssetAtomicRename(declaredElement, solution, newName)];
+        return [new ModifyUnityAssetAtomicRename(
+            declaredElement,
+            newName,
+            solution.GetComponent<UnityAssetReferenceScanner>(),
+            solution.GetComponent<PluginSessionSettings>(),
+            solution.GetComponent<PluginDiagnostics>())];
     }
 }

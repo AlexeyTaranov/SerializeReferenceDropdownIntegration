@@ -1,3 +1,5 @@
+using ReSharperPlugin.SerializeReferenceDropdownIntegration.Infrastructure;
+
 namespace ReSharperPlugin.SerializeReferenceDropdownIntegration.Refactorings.Rename.MovedFrom;
 
 public enum MovedFromRefactoringBehavior
@@ -17,13 +19,13 @@ public enum MovedFromRefactoringSettings
 
 public class MovedFromRenameModel
 {
-    //TODO Setup settings?
-    private static MovedFromRefactoringSettings _showPopupSettings;
+    private readonly PluginSessionSettings sessionSettings;
     public MovedFromRefactoringBehavior MovedFromRefactoringBehavior { get; private set; }
 
-    public MovedFromRenameModel()
+    public MovedFromRenameModel(PluginSessionSettings sessionSettings)
     {
-        MovedFromRefactoringBehavior = _showPopupSettings switch
+        this.sessionSettings = sessionSettings;
+        MovedFromRefactoringBehavior = sessionSettings.MovedFromRefactoringSettings switch
         {
             MovedFromRefactoringSettings.AlwaysAdd => MovedFromRefactoringBehavior.AddAndRemember,
             MovedFromRefactoringSettings.NeverAdd => MovedFromRefactoringBehavior.DontAddAndRemember,
@@ -41,7 +43,7 @@ public class MovedFromRenameModel
                 ? MovedFromRefactoringBehavior.DontAddAndRemember
                 : MovedFromRefactoringBehavior.DontAdd;
 
-        _showPopupSettings = MovedFromRefactoringBehavior switch
+        sessionSettings.MovedFromRefactoringSettings = MovedFromRefactoringBehavior switch
         {
             MovedFromRefactoringBehavior.AddAndRemember => MovedFromRefactoringSettings.AlwaysAdd,
             MovedFromRefactoringBehavior.DontAddAndRemember => MovedFromRefactoringSettings.NeverAdd,

@@ -1,12 +1,12 @@
 using System;
 using System.Linq;
-using JetBrains.Lifetimes;
 using JetBrains.ReSharper.Daemon.CodeInsights;
 using JetBrains.ReSharper.Feature.Services.Daemon;
 using JetBrains.ReSharper.Psi.CSharp.Tree;
 using JetBrains.ReSharper.Psi.Tree;
 using JetBrains.ReSharper.Psi.Util;
 using ReSharperPlugin.SerializeReferenceDropdownIntegration.Extensions;
+using ReSharperPlugin.SerializeReferenceDropdownIntegration.Infrastructure;
 using ReSharperPlugin.SerializeReferenceDropdownIntegration.Unity.AssetsDatabase;
 using ReSharperPlugin.SerializeReferenceDropdownIntegration.Unity.ProjectDetector;
 
@@ -18,15 +18,15 @@ public class ClassUsageAnalyzer : ElementProblemAnalyzer<IClassDeclaration>
 {
     private readonly ClassUsageInsightsProvider codeInsightsProvider;
     private readonly ReferencesCountDatabase countDatabase;
-    private readonly Lifetime lifetime;
+    private readonly PluginDiagnostics diagnostics;
 
     public ClassUsageAnalyzer(ClassUsageInsightsProvider codeInsightsProvider,
         ReferencesCountDatabase assetsSerializeReferencesCountDatabase,
-        Lifetime lifetime)
+        PluginDiagnostics diagnostics)
     {
         this.codeInsightsProvider = codeInsightsProvider;
         this.countDatabase = assetsSerializeReferencesCountDatabase;
-        this.lifetime = lifetime;
+        this.diagnostics = diagnostics;
     }
 
     protected override void Run(IClassDeclaration element, ElementProblemAnalyzerData data,
@@ -85,7 +85,7 @@ public class ClassUsageAnalyzer : ElementProblemAnalyzer<IClassDeclaration>
         }
         catch (Exception e)
         {
-            //
+            diagnostics.Error($"Failed to compute class usage insight for '{element.DeclaredName}'.", e);
         }
     }
 }

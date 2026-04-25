@@ -4,6 +4,7 @@ using JetBrains.ProjectModel;
 using JetBrains.ReSharper.Feature.Services.Refactorings.Specific.Rename;
 using JetBrains.ReSharper.Psi;
 using JetBrains.ReSharper.Psi.VB.Util;
+using ReSharperPlugin.SerializeReferenceDropdownIntegration.Infrastructure;
 using ReSharperPlugin.SerializeReferenceDropdownIntegration.Unity.KnownTypes;
 using ReSharperPlugin.SerializeReferenceDropdownIntegration.Unity.ProjectDetector;
 
@@ -40,6 +41,7 @@ public class MovedFromAtomicRenameFactory : IAtomicRenameFactory
 
         renameDeclaredElements.Add(declaredElement.ShortName);
         var knownTypesCache = declaredElement.GetSolution().GetComponent<KnownTypesCache>();
-        return [new MovedFromAtomicRename(declaredElement, newName, knownTypesCache)];
+        var sessionSettings = declaredElement.GetSolution().GetComponent<PluginSessionSettings>();
+        return [new MovedFromAtomicRename(declaredElement, newName, knownTypesCache, sessionSettings)];
     }
 }

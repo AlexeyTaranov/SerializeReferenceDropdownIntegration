@@ -1,10 +1,11 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using JetBrains.ProjectModel;
 using ReSharperPlugin.SerializeReferenceDropdownIntegration.Data;
+using ReSharperPlugin.SerializeReferenceDropdownIntegration.Infrastructure;
 using ReSharperPlugin.SerializeReferenceDropdownIntegration.Unity.AssetsDatabase;
 
 namespace ReSharperPlugin.SerializeReferenceDropdownIntegration.Refactorings.Rename.ModifyUnityAsset;
@@ -13,56 +14,33 @@ public class ModifyUnityAssetModel
 {
     private readonly UnityTypeData oldType;
     private readonly UnityTypeData newType;
-    private readonly ISolution solution;
-    private readonly List<TypeReferenceData> targetTypeData = new();
+    private readonly UnityAssetReferenceScanner scanner;
+    private readonly PluginDiagnostics diagnostics;
+    private readonly List<UnityAssetReferenceScanner.TypeReferenceData> targetTypeData = new();
 
-    private record TypeReferenceData(
-        string FilePath,
-        IReadOnlyList<AssetsIterator.UnityReferenceTypeLineData> References,
-        IReadOnlyList<AssetsIterator.UnityReferenceTypePrefabOverrideLineData> PrefabOverrides);
-
-    public ModifyUnityAssetModel(UnityTypeData oldType, UnityTypeData newType, ISolution solution)
+    public ModifyUnityAssetModel(UnityTypeData oldType, UnityTypeData newType, UnityAssetReferenceScanner scanner,
+        PluginDiagnostics diagnostics)
     {
         this.oldType = oldType;
         this.newType = newType;
-        this.solution = solution;
+        this.scanner = scanner;
+        this.diagnostics = diagnostics;
     }
 
     public async Task<int> FetchSerializeReferenceCountInAssetsFolderAsync(CancellationToken cancellationToken)
     {
-        var allUnityFiles = AssetsIterator.GetUnityFilesInAssetsFolder(solution);
-
-        var totalCount = 0;
         targetTypeData.Clear();
-
-        var allReferences = new List<AssetsIterator.UnityReferenceTypeLineData>();
-        var allPrefabOverrides = new List<AssetsIterator.UnityReferenceTypePrefabOverrideLineData>();
-
-        foreach (var filePath in allUnityFiles)
+        var collectedTypeData = await scanner.CollectTypeReferencesAsync(oldType, cancellationToken);
+        if (collectedTypeData == null)
         {
-            if (cancellationToken.IsCancellationRequested)
-            {
-                return -1;
-            }
-
-            allReferences.Clear();
-            allPrefabOverrides.Clear();
-
-            await AssetsIterator.FillReferenceTypesBlocksAsync(filePath, allReferences, allPrefabOverrides);
-
-            var targetReferences = allReferences.Where(t => t.Type == oldType).ToArray();
-            var targetPrefabOverrides = allPrefabOverrides.Where(t => t.Type == oldType).ToArray();
-            if (targetReferences.Any() || targetPrefabOverrides.Any())
-            {
-                targetTypeData.Add(new TypeReferenceData(filePath, targetReferences, targetPrefabOverrides));
-                totalCount += targetReferences.Length + targetPrefabOverrides.Length;
-            }
+            return -1;
         }
 
-        return totalCount;
+        targetTypeData.AddRange(collectedTypeData);
+        return targetTypeData.Sum(t => t.References.Count + t.PrefabOverrides.Count);
     }
 
-    public async Task ModifyAllFilesAsync()
+    public Task ModifyAllFilesAsync()
     {
         var allLines = new List<string>();
         foreach (var data in targetTypeData)
@@ -76,7 +54,7 @@ public class ModifyUnityAssetModel
 
                 var fullTypeName = string.IsNullOrEmpty(newType.Namespace)
                     ? newType.ClassName
-                    : $"{newType.AssemblyName}.{newType.ClassName}";
+                    : $"{newType.Namespace}.{newType.ClassName}";
 
                 var newLine = AssetsIterator.prefabOverrideSerializeReferenceTypeRegex.Replace(
                     oldLine,
@@ -105,5 +83,12 @@ public class ModifyUnityAssetModel
 
             File.WriteAllLines(data.FilePath, allLines);
         }
+
+        return Task.CompletedTask;
+    }
+
+    public void LogModificationFailure(Exception exception)
+    {
+        diagnostics.Error($"Failed to modify Unity assets for '{oldType.GetFullTypeName()}'.", exception);
     }
 }

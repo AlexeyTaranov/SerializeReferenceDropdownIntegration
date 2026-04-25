@@ -1,0 +1,123 @@
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using JetBrains.Application.Parts;
+using JetBrains.DataFlow;
+using JetBrains.ProjectModel;
+using ReSharperPlugin.SerializeReferenceDropdownIntegration.Data;
+using ReSharperPlugin.SerializeReferenceDropdownIntegration.Infrastructure;
+
+namespace ReSharperPlugin.SerializeReferenceDropdownIntegration.Unity.AssetsDatabase;
+
+[SolutionComponent(Instantiation.DemandAnyThreadSafe)]
+public class UnityAssetReferenceScanner
+{
+    public readonly record struct TypeReferenceData(
+        string FilePath,
+        IReadOnlyList<AssetsIterator.UnityReferenceTypeLineData> References,
+        IReadOnlyList<AssetsIterator.UnityReferenceTypePrefabOverrideLineData> PrefabOverrides);
+
+    private readonly ISolution solution;
+    private readonly PluginDiagnostics diagnostics;
+
+    public UnityAssetReferenceScanner(ISolution solution, PluginDiagnostics diagnostics)
+    {
+        this.solution = solution;
+        this.diagnostics = diagnostics;
+    }
+
+    public bool TryGetUnityAssetFiles(out IReadOnlyList<string> allUnityFiles)
+    {
+        allUnityFiles = AssetsIterator.GetUnityFilesInAssetsFolder(solution);
+        var assetsPath = Path.Combine(solution.SolutionDirectory.FullPath, "Assets");
+        if (Directory.Exists(assetsPath))
+        {
+            return true;
+        }
+
+        diagnostics.Warn($"Unity Assets folder was not found: {assetsPath}");
+        return false;
+    }
+
+    public async Task<Dictionary<UnityTypeData, int>> FetchSerializeReferenceTypesCountAsync(Property<double> progress,
+        Property<string> description, CancellationToken cancellationToken)
+    {
+        if (!TryGetUnityAssetFiles(out var allFiles))
+        {
+            description.Value = "Assets folder not found";
+            progress.Value = 1.0;
+            return new Dictionary<UnityTypeData, int>();
+        }
+
+        var typeCount = new Dictionary<UnityTypeData, int>();
+        description.Value = "1/2: Check All Unity Files";
+
+        var referenceTypes = new List<AssetsIterator.UnityReferenceTypeLineData>();
+        var prefabOverrides = new List<AssetsIterator.UnityReferenceTypePrefabOverrideLineData>();
+        for (var i = 0; i < allFiles.Count; i++)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return null;
+            }
+
+            description.Value = $"2/2: Read Unity files: {i}/{allFiles.Count}";
+            progress.Value = allFiles.Count == 0 ? 1.0 : (float)(i + 1) / allFiles.Count;
+
+            referenceTypes.Clear();
+            prefabOverrides.Clear();
+            await AssetsIterator.FillReferenceTypesBlocksAsync(allFiles[i], referenceTypes, prefabOverrides);
+
+            foreach (var checkType in referenceTypes.Select(t => t.Type).Concat(prefabOverrides.Select(t => t.Type)))
+            {
+                typeCount.TryGetValue(checkType, out var count);
+                typeCount[checkType] = count + 1;
+            }
+        }
+
+        if (allFiles.Count == 0)
+        {
+            progress.Value = 1.0;
+            description.Value = "No Unity assets found";
+        }
+
+        return typeCount;
+    }
+
+    public async Task<IReadOnlyList<TypeReferenceData>> CollectTypeReferencesAsync(UnityTypeData targetType,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetUnityAssetFiles(out var allUnityFiles))
+        {
+            return [];
+        }
+
+        var targetTypeData = new List<TypeReferenceData>();
+        var allReferences = new List<AssetsIterator.UnityReferenceTypeLineData>();
+        var allPrefabOverrides = new List<AssetsIterator.UnityReferenceTypePrefabOverrideLineData>();
+
+        foreach (var filePath in allUnityFiles)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return null;
+            }
+
+            allReferences.Clear();
+            allPrefabOverrides.Clear();
+
+            await AssetsIterator.FillReferenceTypesBlocksAsync(filePath, allReferences, allPrefabOverrides);
+
+            var targetReferences = allReferences.Where(t => t.Type == targetType).ToArray();
+            var targetPrefabOverrides = allPrefabOverrides.Where(t => t.Type == targetType).ToArray();
+            if (targetReferences.Length > 0 || targetPrefabOverrides.Length > 0)
+            {
+                targetTypeData.Add(new TypeReferenceData(filePath, targetReferences, targetPrefabOverrides));
+            }
+        }
+
+        return targetTypeData;
+    }
+}

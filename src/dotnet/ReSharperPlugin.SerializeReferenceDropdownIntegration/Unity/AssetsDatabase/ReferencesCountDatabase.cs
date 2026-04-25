@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using JetBrains.Application.Parts;
@@ -14,6 +12,7 @@ using JetBrains.ProjectModel.ProjectsHost.SolutionHost.Progress;
 using JetBrains.ReSharper.Daemon;
 using JetBrains.Threading;
 using ReSharperPlugin.SerializeReferenceDropdownIntegration.Data;
+using ReSharperPlugin.SerializeReferenceDropdownIntegration.Infrastructure;
 
 namespace ReSharperPlugin.SerializeReferenceDropdownIntegration.Unity.AssetsDatabase;
 
@@ -31,6 +30,8 @@ public class ReferencesCountDatabase
     private readonly ISolution solution;
     private readonly IShellLocks myShellLocks;
     private readonly BackgroundProgressManager myBackgroundProgressManager;
+    private readonly UnityAssetReferenceScanner scanner;
+    private readonly PluginDiagnostics diagnostics;
 
     private readonly ViewableProperty<DatabaseState> currentState;
 
@@ -38,13 +39,16 @@ public class ReferencesCountDatabase
     public IViewableProperty<DatabaseState> CurrentState => currentState;
 
     public ReferencesCountDatabase(Lifetime lifetime, ISolution solution, IShellLocks myShellLocks,
-        BackgroundProgressManager myBackgroundProgressManager)
+        BackgroundProgressManager myBackgroundProgressManager, UnityAssetReferenceScanner scanner,
+        PluginDiagnostics diagnostics)
     {
         currentState = new ViewableProperty<DatabaseState>(DatabaseState.Empty);
         this.lifetime = lifetime;
         this.solution = solution;
         this.myShellLocks = myShellLocks;
         this.myBackgroundProgressManager = myBackgroundProgressManager;
+        this.scanner = scanner;
+        this.diagnostics = diagnostics;
     }
 
     public int GetUsagesCount(UnityTypeData type)
@@ -101,6 +105,7 @@ public class ReferencesCountDatabase
             }
             catch (Exception _)
             {
+                diagnostics.Error("Failed to refresh SerializeReference database.", _);
                 DropDatabase();
                 refreshDatabaseLifetimeDefinition.Terminate();
                 return;
@@ -128,36 +133,6 @@ public class ReferencesCountDatabase
         Property<string> description,
         CancellationToken cancellationToken)
     {
-        var typeCount = new Dictionary<UnityTypeData, int>();
-        description.Value = "1/2: Check All Unity Files";
-        var allFiles = AssetsIterator.GetUnityFilesInAssetsFolder(solution);
-
-        var referenceTypes = new List<AssetsIterator.UnityReferenceTypeLineData>();
-        var prefabOverrides = new List<AssetsIterator.UnityReferenceTypePrefabOverrideLineData>();
-        //TODO: Parallel read files? 
-        for (var i = 0; i < allFiles.Count; i++)
-        {
-            if (cancellationToken.IsCancellationRequested)
-            {
-                return null;
-            }
-
-            description.Value = $"2/2: Read Unity files: {i}/{allFiles.Count}";
-            progress.Value = (float)(i + 1) / (float)allFiles.Count;
-
-            var filePath = allFiles[i];
-
-            referenceTypes.Clear();
-            prefabOverrides.Clear();
-            await AssetsIterator.FillReferenceTypesBlocksAsync(filePath, referenceTypes, prefabOverrides);
-            var allTypes = referenceTypes.Select(t => t.Type).Concat(prefabOverrides.Select(t => t.Type));
-            foreach (var checkType in allTypes)
-            {
-                typeCount.TryGetValue(checkType, out var count);
-                typeCount[checkType] = count + 1;
-            }
-        }
-
-        return typeCount;
+        return await scanner.FetchSerializeReferenceTypesCountAsync(progress, description, cancellationToken);
     }
 }

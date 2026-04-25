@@ -10,26 +10,33 @@ using JetBrains.ReSharper.Psi.Pointers;
 using JetBrains.ReSharper.Refactorings.Rename;
 using ReSharperPlugin.SerializeReferenceDropdownIntegration.Data;
 using ReSharperPlugin.SerializeReferenceDropdownIntegration.Extensions;
+using ReSharperPlugin.SerializeReferenceDropdownIntegration.Infrastructure;
+using ReSharperPlugin.SerializeReferenceDropdownIntegration.Unity.AssetsDatabase;
 
 namespace ReSharperPlugin.SerializeReferenceDropdownIntegration.Refactorings.Rename.ModifyUnityAsset;
 
 public class ModifyUnityAssetAtomicRename : AtomicRenameBase
 {
     private readonly IDeclaredElementPointer<IDeclaredElement> myPointer;
-    private readonly ISolution solution;
+    private readonly UnityAssetReferenceScanner scanner;
+    private readonly PluginSessionSettings sessionSettings;
+    private readonly PluginDiagnostics diagnostics;
 
-    public ModifyUnityAssetAtomicRename(IDeclaredElement declaredElement, ISolution solution, string newName)
+    public ModifyUnityAssetAtomicRename(IDeclaredElement declaredElement, string newName,
+        UnityAssetReferenceScanner scanner, PluginSessionSettings sessionSettings, PluginDiagnostics diagnostics)
     {
         myPointer = declaredElement.CreateElementPointer();
-        this.solution = solution;
+        this.scanner = scanner;
+        this.sessionSettings = sessionSettings;
+        this.diagnostics = diagnostics;
         NewName = newName;
         OldName = declaredElement.ShortName;
     }
 
-    public override IRefactoringPage? CreateRenamesConfirmationPage(IRenameWorkflow renameWorkflow,
+    public override IRefactoringPage CreateRenamesConfirmationPage(IRenameWorkflow renameWorkflow,
         IProgressIndicator pi)
     {
-        if (ModifyUnityAssetRefactoringPage.ShowBehaviour == ModifyYamlShowBehaviour.DontShow)
+        if (sessionSettings.ModifyYamlShowBehaviour == ModifyYamlShowBehaviour.DontShow)
         {
             return null;
         }
@@ -37,9 +44,9 @@ public class ModifyUnityAssetAtomicRename : AtomicRenameBase
         var oldType = ExtractCurrentType();
         var newType = oldType with { ClassName = NewName };
 
-        var implementation = new ModifyUnityAssetModel(oldType, newType, solution);
+        var implementation = new ModifyUnityAssetModel(oldType, newType, scanner, diagnostics);
         return new ModifyUnityAssetRefactoringPage(((RefactoringWorkflowBase)renameWorkflow).WorkflowExecuterLifetime,
-            implementation);
+            implementation, sessionSettings);
     }
 
     private UnityTypeData ExtractCurrentType()
@@ -64,9 +71,9 @@ public class ModifyUnityAssetAtomicRename : AtomicRenameBase
         return;
     }
 
-    public override IDeclaredElement? NewDeclaredElement => myPointer.FindDeclaredElement();
+    public override IDeclaredElement NewDeclaredElement => myPointer.FindDeclaredElement();
     public override string NewName { get; }
     public override string OldName { get; }
     public override IDeclaredElement PrimaryDeclaredElement => myPointer.FindDeclaredElement().NotNull();
-    public override IList<IDeclaredElement>? SecondaryDeclaredElements => null;
+    public override IList<IDeclaredElement> SecondaryDeclaredElements => null;
 }

@@ -12,6 +12,7 @@ using JetBrains.ReSharper.Psi.Tree;
 using JetBrains.ReSharper.Refactorings.Rename;
 using JetBrains.Util;
 using JetBrains.Util.dataStructures;
+using ReSharperPlugin.SerializeReferenceDropdownIntegration.Infrastructure;
 using ReSharperPlugin.SerializeReferenceDropdownIntegration.Unity.KnownTypes;
 
 namespace ReSharperPlugin.SerializeReferenceDropdownIntegration.Refactorings.Rename.MovedFrom;
@@ -23,13 +24,13 @@ public class MovedFromAtomicRename : AtomicRenameBase
     private readonly MovedFromRenameModel myModel;
 
     public MovedFromAtomicRename(IDeclaredElement declaredElement, string newName,
-        KnownTypesCache knownTypesCache)
+        KnownTypesCache knownTypesCache, PluginSessionSettings sessionSettings)
     {
         myKnownTypesCache = knownTypesCache;
         NewName = newName;
         OldName = declaredElement.ShortName;
         myPointer = declaredElement.CreateElementPointer();
-        myModel = new MovedFromRenameModel();
+        myModel = new MovedFromRenameModel(sessionSettings);
     }
 
     public override IRefactoringPage CreateRenamesConfirmationPage(IRenameWorkflow renameWorkflow,
