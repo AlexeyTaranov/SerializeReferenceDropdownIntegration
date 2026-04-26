@@ -89,20 +89,51 @@ public class UnityAssetReferenceScanner
     public async Task<IReadOnlyList<TypeReferenceData>> CollectTypeReferencesAsync(UnityTypeData targetType,
         CancellationToken cancellationToken)
     {
+        return await CollectTypeReferencesAsync(targetType, cancellationToken, null, null);
+    }
+
+    public async Task<IReadOnlyList<TypeReferenceData>> CollectTypeReferencesAsync(UnityTypeData targetType,
+        CancellationToken cancellationToken, Property<double> progress, Property<string> description)
+    {
         if (!TryGetUnityAssetFiles(out var allUnityFiles))
         {
+            if (description != null)
+            {
+                description.Value = "Assets folder not found";
+            }
+
+            if (progress != null)
+            {
+                progress.Value = 1.0;
+            }
+
             return [];
         }
 
+        if (description != null)
+        {
+            description.Value = $"Scanning Unity assets for {targetType.ClassName}";
+        }
         var targetTypeData = new List<TypeReferenceData>();
         var allReferences = new List<UnityReferenceTypeLineData>();
         var allPrefabOverrides = new List<UnityReferenceTypePrefabOverrideLineData>();
 
-        foreach (var filePath in allUnityFiles)
+        for (var i = 0; i < allUnityFiles.Count; i++)
         {
             if (cancellationToken.IsCancellationRequested)
             {
                 return null;
+            }
+
+            var filePath = allUnityFiles[i];
+            if (description != null)
+            {
+                description.Value = $"Scanning Unity assets: {i + 1}/{allUnityFiles.Count}";
+            }
+
+            if (progress != null)
+            {
+                progress.Value = allUnityFiles.Count == 0 ? 1.0 : (double)(i + 1) / allUnityFiles.Count;
             }
 
             allReferences.Clear();
@@ -115,6 +146,19 @@ public class UnityAssetReferenceScanner
             if (targetReferences.Length > 0 || targetPrefabOverrides.Length > 0)
             {
                 targetTypeData.Add(new TypeReferenceData(filePath, targetReferences, targetPrefabOverrides));
+            }
+        }
+
+        if (allUnityFiles.Count == 0)
+        {
+            if (description != null)
+            {
+                description.Value = "No Unity assets found";
+            }
+
+            if (progress != null)
+            {
+                progress.Value = 1.0;
             }
         }
 
