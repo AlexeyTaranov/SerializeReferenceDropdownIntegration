@@ -19,18 +19,24 @@ public class ModifyUnityAssetAtomicRename : AtomicRenameBase
 {
     private readonly IDeclaredElementPointer<IDeclaredElement> myPointer;
     private readonly UnityAssetReferenceScanner scanner;
+    private readonly UnityAssetReferenceDocumentWriter documentWriter;
     private readonly PluginSessionSettings sessionSettings;
     private readonly PluginDiagnostics diagnostics;
+    private readonly UnityTypeData? oldType;
+    private ModifyUnityAssetModel model;
 
     public ModifyUnityAssetAtomicRename(IDeclaredElement declaredElement, string newName,
-        UnityAssetReferenceScanner scanner, PluginSessionSettings sessionSettings, PluginDiagnostics diagnostics)
+        UnityAssetReferenceScanner scanner, UnityAssetReferenceDocumentWriter documentWriter,
+        PluginSessionSettings sessionSettings, PluginDiagnostics diagnostics)
     {
         myPointer = declaredElement.CreateElementPointer();
         this.scanner = scanner;
+        this.documentWriter = documentWriter;
         this.sessionSettings = sessionSettings;
         this.diagnostics = diagnostics;
         NewName = newName;
         OldName = declaredElement.ShortName;
+        oldType = ExtractCurrentType(declaredElement as ITypeMember);
     }
 
     public override IRefactoringPage CreateRenamesConfirmationPage(IRenameWorkflow renameWorkflow,
@@ -41,19 +47,23 @@ public class ModifyUnityAssetAtomicRename : AtomicRenameBase
             return null;
         }
 
-        var oldType = ExtractCurrentType();
-        var newType = oldType with { ClassName = NewName };
+        if (oldType == null)
+        {
+            return null;
+        }
 
-        var implementation = new ModifyUnityAssetModel(oldType, newType, scanner, diagnostics);
+        var newType = oldType.Value with { ClassName = NewName };
+
+        model = new ModifyUnityAssetModel(oldType.Value, newType, scanner, documentWriter, diagnostics);
         return new ModifyUnityAssetRefactoringPage(((RefactoringWorkflowBase)renameWorkflow).WorkflowExecuterLifetime,
-            implementation, sessionSettings);
+            model, sessionSettings);
     }
 
-    private UnityTypeData ExtractCurrentType()
+    private UnityTypeData? ExtractCurrentType(ITypeMember typeMember)
     {
-        var declaration = GetDeclaration(myPointer.FindDeclaredElement() as ITypeMember);
+        var declaration = GetDeclaration(typeMember);
         var classDeclaration = declaration as IClassDeclaration;
-        return  classDeclaration.ExtractUnityTypeFromClassDeclaration();
+        return classDeclaration?.ExtractUnityTypeFromClassDeclaration();
     }
 
     private IClassMemberDeclaration GetDeclaration(ITypeMember typeMember)
@@ -67,8 +77,22 @@ public class ModifyUnityAssetAtomicRename : AtomicRenameBase
     public override void Rename(IRenameRefactoring executer, IProgressIndicator pi, bool hasConflictsWithDeclarations,
         IRefactoringDriver driver, PreviousAtomicRenames previousAtomicRenames)
     {
-        // Actually all modify yaml logic - in confirmation page
-        return;
+        if (sessionSettings.ModifyYamlShowBehaviour == ModifyYamlShowBehaviour.DontShow || oldType == null)
+        {
+            return;
+        }
+
+        var newType = oldType.Value with { ClassName = NewName };
+        model ??= new ModifyUnityAssetModel(oldType.Value, newType, scanner, documentWriter, diagnostics);
+
+        try
+        {
+            model.ModifyAllFilesAsync().GetAwaiter().GetResult();
+        }
+        catch (System.Exception exception)
+        {
+            model.LogModificationFailure(exception);
+        }
     }
 
     public override IDeclaredElement NewDeclaredElement => myPointer.FindDeclaredElement();

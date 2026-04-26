@@ -43,6 +43,7 @@ public class ModifyUnityAssetAtomicRenameFactory : IAtomicRenameFactory
             declaredElement,
             newName,
             solution.GetComponent<UnityAssetReferenceScanner>(),
+            solution.GetComponent<UnityAssetReferenceRiderDocumentWriter>(),
             solution.GetComponent<PluginSessionSettings>(),
             solution.GetComponent<PluginDiagnostics>())];
     }

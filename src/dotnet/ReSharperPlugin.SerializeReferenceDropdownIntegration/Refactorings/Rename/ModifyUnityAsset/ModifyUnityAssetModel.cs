@@ -12,28 +12,32 @@ namespace ReSharperPlugin.SerializeReferenceDropdownIntegration.Refactorings.Ren
 
 public class ModifyUnityAssetModel
 {
-    private const int MaxPreviewChanges = 5;
+    private const int MaxPreviewFiles = 10;
 
     private readonly UnityTypeData oldType;
     private readonly UnityTypeData newType;
     private readonly UnityAssetReferenceScanner scanner;
+    private readonly UnityAssetReferenceDocumentWriter documentWriter;
     private readonly PluginDiagnostics diagnostics;
     private readonly List<UnityAssetReferenceScanner.TypeReferenceData> targetTypeData = new();
     private readonly List<FilePreviewData> previewData = new();
+    private bool previewLoaded;
 
     public IReadOnlyList<UnityAssetReferenceChange> PreviewChanges =>
         previewData.SelectMany(data => data.Changes).ToArray();
 
     public int PreviewFilesCount => previewData.Count(data => data.Changes.Count > 0);
+    public bool ShouldApplyModifiedFiles { get; set; }
 
     private readonly record struct FilePreviewData(string FilePath, IReadOnlyList<UnityAssetReferenceChange> Changes);
 
     public ModifyUnityAssetModel(UnityTypeData oldType, UnityTypeData newType, UnityAssetReferenceScanner scanner,
-        PluginDiagnostics diagnostics)
+        UnityAssetReferenceDocumentWriter documentWriter, PluginDiagnostics diagnostics)
     {
         this.oldType = oldType;
         this.newType = newType;
         this.scanner = scanner;
+        this.documentWriter = documentWriter;
         this.diagnostics = diagnostics;
     }
 
@@ -41,6 +45,7 @@ public class ModifyUnityAssetModel
     {
         targetTypeData.Clear();
         previewData.Clear();
+        previewLoaded = false;
         var collectedTypeData = await scanner.CollectTypeReferencesAsync(oldType, cancellationToken);
         if (collectedTypeData == null)
         {
@@ -63,6 +68,7 @@ public class ModifyUnityAssetModel
             }
         }
 
+        previewLoaded = true;
         return PreviewChanges.Count;
     }
 
@@ -70,42 +76,42 @@ public class ModifyUnityAssetModel
     {
         if (previewData.Count == 0)
         {
-            return "Preview: no changes";
+            return "Modified files: none";
         }
 
-        var previewLines = new List<string> { "Preview:" };
-        var shownChanges = 0;
+        var previewLines = new List<string> { "Modified files:" };
 
-        foreach (var fileData in previewData)
+        foreach (var fileData in previewData.Take(MaxPreviewFiles))
         {
-            foreach (var change in fileData.Changes)
-            {
-                if (shownChanges >= MaxPreviewChanges)
-                {
-                    var remainingChanges = PreviewChanges.Count - shownChanges;
-                    previewLines.Add($"...and {remainingChanges} more changes");
-                    return string.Join(Environment.NewLine, previewLines);
-                }
+            previewLines.Add(Path.GetFileName(fileData.FilePath));
+        }
 
-                previewLines.Add($"{Path.GetFileName(fileData.FilePath)}:{change.LineIndex + 1}");
-                previewLines.Add($"- {FormatPreviewLines(change.OldLines)}");
-                previewLines.Add($"+ {FormatPreviewLines(change.NewLines)}");
-                shownChanges++;
-            }
+        var remainingFiles = previewData.Count - MaxPreviewFiles;
+        if (remainingFiles > 0)
+        {
+            previewLines.Add($"...and {remainingFiles} more files");
         }
 
         return string.Join(Environment.NewLine, previewLines);
     }
 
-    public Task ModifyAllFilesAsync()
+    public async Task ModifyAllFilesAsync(CancellationToken cancellationToken = default)
     {
-        foreach (var data in previewData)
+        if (!ShouldApplyModifiedFiles)
         {
-            var modifiedLines = UnityAssetReferenceRewriter.ApplyChanges(File.ReadAllLines(data.FilePath), data.Changes);
-            File.WriteAllLines(data.FilePath, modifiedLines);
+            return;
         }
 
-        return Task.CompletedTask;
+        if (!previewLoaded)
+        {
+            await FetchSerializeReferenceCountInAssetsFolderAsync(cancellationToken);
+        }
+
+        var fileChanges = previewData
+            .Select(data => new UnityAssetReferenceFileChange(data.FilePath, data.Changes))
+            .ToArray();
+
+        await documentWriter.ApplyChangesAsync(fileChanges);
     }
 
     public void LogModificationFailure(Exception exception)
@@ -113,8 +119,4 @@ public class ModifyUnityAssetModel
         diagnostics.Error($"Failed to modify Unity assets for '{oldType.GetFullTypeName()}'.", exception);
     }
 
-    private static string FormatPreviewLines(IReadOnlyList<string> lines)
-    {
-        return string.Join(" ", lines.Select(line => line.Trim()));
-    }
 }
