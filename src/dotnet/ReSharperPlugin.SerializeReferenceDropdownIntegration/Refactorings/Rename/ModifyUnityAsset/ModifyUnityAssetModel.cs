@@ -74,12 +74,17 @@ public class ModifyUnityAssetModel
 
     public string BuildPreviewText()
     {
-        if (previewData.Count == 0)
+        if (!previewLoaded)
         {
-            return "Modified files: none";
+            return "Affected files will appear here after scanning.";
         }
 
-        var previewLines = new List<string> { "Modified files:" };
+        if (previewData.Count == 0)
+        {
+            return "Affected files: none";
+        }
+
+        var previewLines = new List<string> { "Affected files:" };
 
         foreach (var fileData in previewData.Take(MaxPreviewFiles))
         {

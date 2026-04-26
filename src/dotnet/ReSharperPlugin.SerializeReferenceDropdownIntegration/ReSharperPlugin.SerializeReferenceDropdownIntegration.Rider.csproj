@@ -9,7 +9,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="JetBrains.Rider.SDK" Version="$(SdkVersion)" />
+    <PackageReference Include="JetBrains.Rider.Native.Core.windows-arm64.Release" Version="252.0.20250812.72128" PrivateAssets="All" />
+    <PackageReference Include="JetBrains.Rider.Native.Core.windows-x64.Release" Version="252.0.20250812.72048" PrivateAssets="All" />
+    <PackageReference Include="JetBrains.Rider.Native.Core.windows-x86.Release" Version="252.0.20250812.72044" PrivateAssets="All" />
   </ItemGroup>
-
 </Project>

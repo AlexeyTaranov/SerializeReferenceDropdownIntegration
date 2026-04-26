@@ -7,4 +7,12 @@
     <description>
         <![CDATA[<p>Integration for unity package: SerializeReferenceDropdown</p>]]>
     </description>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <applicationConfigurable
+                id="tools.serialize.reference.dropdown"
+                parentId="tools"
+                displayName="Serialize Reference Dropdown"
+                instance="com.jetbrains.rider.plugins.serializereferencedropdownintegration.SerializeReferenceDropdownConfigurable"/>
+    </extensions>
 </idea-plugin>
