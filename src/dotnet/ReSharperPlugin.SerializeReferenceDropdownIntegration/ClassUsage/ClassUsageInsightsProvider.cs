@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -17,6 +18,7 @@ using JetBrains.Util;
 using ReSharperPlugin.SerializeReferenceDropdownIntegration.Data;
 using ReSharperPlugin.SerializeReferenceDropdownIntegration.Extensions;
 using ReSharperPlugin.SerializeReferenceDropdownIntegration.Infrastructure;
+using ReSharperPlugin.SerializeReferenceDropdownIntegration.ToUnity;
 using ReSharperPlugin.SerializeReferenceDropdownIntegration.Unity.AssetsDatabase;
 
 namespace ReSharperPlugin.SerializeReferenceDropdownIntegration.ClassUsage;
@@ -33,6 +35,8 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
     private readonly UnityAssetReferenceScanner scanner;
     private readonly PluginDiagnostics diagnostics;
     private readonly PluginSessionSettings sessionSettings;
+    private readonly ToUnitySrdPipe toUnitySrdPipe;
+    private readonly ToUnityWindowFocusSwitch toUnityWindowFocusSwitch;
     private readonly object previewLifetimeLock = new();
     private LifetimeDefinition currentPreviewLifetimeDefinition;
 
@@ -42,7 +46,9 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
         ReferencesCountDatabase countDatabase,
         UnityAssetReferenceScanner scanner,
         PluginDiagnostics diagnostics,
-        PluginSessionSettings sessionSettings)
+        PluginSessionSettings sessionSettings,
+        ToUnitySrdPipe toUnitySrdPipe,
+        ToUnityWindowFocusSwitch toUnityWindowFocusSwitch)
     {
         this.lifetime = lifetime;
         this.shellLocks = shellLocks;
@@ -51,6 +57,8 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
         this.scanner = scanner;
         this.diagnostics = diagnostics;
         this.sessionSettings = sessionSettings;
+        this.toUnitySrdPipe = toUnitySrdPipe;
+        this.toUnityWindowFocusSwitch = toUnityWindowFocusSwitch;
     }
 
     public bool IsAvailableIn(ISolution solution)
@@ -67,9 +75,15 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
         }
 
         var unityType = GetUnityType(highlightInfo);
-        if (countDatabase.CurrentState.Value == ReferencesCountDatabase.DatabaseState.Empty)
+        var databaseState = countDatabase.CurrentState.Value;
+        if (databaseState == ReferencesCountDatabase.DatabaseState.Empty)
         {
             countDatabase.RunRefreshDatabase();
+            return;
+        }
+
+        if (databaseState == ReferencesCountDatabase.DatabaseState.Refreshing)
+        {
             return;
         }
 
@@ -123,9 +137,8 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
                 return;
             }
 
-            var message = BuildReferencesPreview(solution, references);
-            shellLocks.StartMainRead(previewLifetime, () =>
-                MessageBox.ShowInfo(message, $"{Names.SRDShort}: Unity asset usages")).NoAwait();
+            var preview = BuildReferencesPreview(solution, references);
+            await shellLocks.StartMainRead(previewLifetime, () => ShowReferencesPreview(preview));
         }
         catch (Exception exception)
         {
@@ -133,9 +146,9 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
             var previewLifetime = previewLifetimeDefinition.Lifetime;
             if (previewLifetime.IsAlive)
             {
-                shellLocks.StartMainRead(previewLifetime, () =>
+                await shellLocks.StartMainRead(previewLifetime, () =>
                     MessageBox.ShowError("Failed to scan Unity asset usages. Check Rider logs for details.",
-                        Names.SRDShort)).NoAwait();
+                        Names.SRDShort));
             }
         }
         finally
@@ -160,27 +173,48 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
         return classDeclaration.ExtractUnityTypeFromClassDeclaration();
     }
 
-    private static string BuildReferencesPreview(ISolution solution,
+    private void ShowReferencesPreview(ReferencesPreview preview)
+    {
+        if (preview.FirstAssetPath == null)
+        {
+            MessageBox.ShowInfo(preview.Message, $"{Names.SRDShort}: Unity asset usages");
+            return;
+        }
+
+        var openAsset = MessageBox.ShowYesNo(
+            $"{preview.Message}\n\nOpen first asset in Unity?\n{preview.FirstAssetPath}",
+            $"{Names.SRDShort}: Unity asset usages");
+        if (!openAsset)
+        {
+            return;
+        }
+
+        toUnitySrdPipe.OpenUnityAsset(preview.FirstAssetPath);
+        toUnityWindowFocusSwitch.SwitchToUnityApplication();
+    }
+
+    private static ReferencesPreview BuildReferencesPreview(ISolution solution,
         IReadOnlyList<UnityAssetReferenceScanner.TypeReferenceData> references)
     {
         if (references == null)
         {
-            return "Unity asset usage scan was cancelled.";
+            return new ReferencesPreview("Unity asset usage scan was cancelled.", null);
         }
 
         if (references.Count == 0)
         {
-            return "No Unity asset files reference this type.";
+            return new ReferencesPreview("No Unity asset files reference this type.", null);
         }
 
         const int maxFilesInPreview = 30;
         var solutionPath = solution.SolutionDirectory.FullPath;
+        var firstAssetPath = NormalizeUnityAssetPath(GetRelativePath(solutionPath, references[0].FilePath));
         var totalReferences = references.Sum(reference => reference.References.Count + reference.PrefabOverrides.Count);
         var previewLines = references
             .Take(maxFilesInPreview)
             .Select(reference =>
             {
-                var relativePath = GetRelativePath(solutionPath, reference.FilePath);
+                var relativePath = NormalizeUnityAssetPath(GetRelativePath(solutionPath, reference.FilePath));
                 var lineNumbers = reference.References
                     .Select(referenceLine => referenceLine.LineIndex + 1)
                     .Concat(reference.PrefabOverrides.Select(prefabOverride => prefabOverride.LineIndex + 1))
@@ -195,7 +229,9 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
             preview += $"\n...and {references.Count - maxFilesInPreview} more files.";
         }
 
-        return $"Found {totalReferences} references in {references.Count} Unity asset files.\n\n{preview}";
+        return new ReferencesPreview(
+            $"Found {totalReferences} references in {references.Count} Unity asset files.\n\n{preview}",
+            firstAssetPath);
     }
 
     private static string GetRelativePath(string rootPath, string filePath)
@@ -211,6 +247,12 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
         return filePath;
     }
 
+    private static string NormalizeUnityAssetPath(string path)
+    {
+        return path.Replace(Path.DirectorySeparatorChar, '/')
+            .Replace(Path.AltDirectorySeparatorChar, '/');
+    }
+
     public void OnExtraActionClick(CodeInsightHighlightInfo highlightInfo, string actionId, ISolution solution)
     {
         countDatabase.RunRefreshDatabase();
@@ -222,4 +264,16 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
 
     public ICollection<CodeVisionRelativeOrdering> RelativeOrderings => new List<CodeVisionRelativeOrdering>()
         { new CodeVisionRelativeOrderingFirst() };
+
+    private sealed class ReferencesPreview
+    {
+        public ReferencesPreview(string message, string firstAssetPath)
+        {
+            Message = message;
+            FirstAssetPath = firstAssetPath;
+        }
+
+        public string Message { get; }
+        public string FirstAssetPath { get; }
+    }
 }

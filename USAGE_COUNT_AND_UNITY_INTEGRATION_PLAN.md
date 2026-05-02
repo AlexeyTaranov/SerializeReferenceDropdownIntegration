@@ -7,7 +7,8 @@ This plan tracks the next improvements for SerializeReference usage preview and 
 - `Usages Count` is shown through Rider Code Vision above supported C# classes.
 - Clicking `Usages Count` currently opens a text preview with Unity asset file paths and line numbers.
 - The preview is read-only and shown in a `MessageBox`.
-- Asset entries in the preview are not clickable yet.
+- The preview can open the first listed asset in Unity through the JSON bridge.
+- Individual asset entries in the preview are not clickable yet.
 - `ToUnitySrdPipe` can send JSON type-search and asset-open commands to Unity through a named pipe.
 - `ToUnitySrdPipe` uses a connection timeout so Rider does not hang when Unity or the Unity bridge is unavailable.
 - `ToUnityWindowFocusSwitch` can focus Unity on macOS through `osascript` and on Windows through `user32.dll`.
