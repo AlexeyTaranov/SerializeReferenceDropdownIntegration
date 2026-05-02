@@ -24,23 +24,33 @@ namespace ReSharperPlugin.SerializeReferenceDropdownIntegration.ClassUsage;
 [SolutionComponent(Instantiation.DemandAnyThreadSafe)]
 public class ClassUsageInsightsProvider : ICodeInsightsProvider
 {
+    public const string RefreshUsageDatabaseActionId = "RefreshUsageDatabase";
+
     private readonly Lifetime lifetime;
     private readonly IShellLocks shellLocks;
     private readonly BackgroundProgressManager backgroundProgressManager;
+    private readonly ReferencesCountDatabase countDatabase;
     private readonly UnityAssetReferenceScanner scanner;
     private readonly PluginDiagnostics diagnostics;
+    private readonly PluginSessionSettings sessionSettings;
+    private readonly object previewLifetimeLock = new();
+    private LifetimeDefinition currentPreviewLifetimeDefinition;
 
     public ClassUsageInsightsProvider(Lifetime lifetime,
         IShellLocks shellLocks,
         BackgroundProgressManager backgroundProgressManager,
+        ReferencesCountDatabase countDatabase,
         UnityAssetReferenceScanner scanner,
-        PluginDiagnostics diagnostics)
+        PluginDiagnostics diagnostics,
+        PluginSessionSettings sessionSettings)
     {
         this.lifetime = lifetime;
         this.shellLocks = shellLocks;
         this.backgroundProgressManager = backgroundProgressManager;
+        this.countDatabase = countDatabase;
         this.scanner = scanner;
         this.diagnostics = diagnostics;
+        this.sessionSettings = sessionSettings;
     }
 
     public bool IsAvailableIn(ISolution solution)
@@ -57,6 +67,18 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
         }
 
         var unityType = GetUnityType(highlightInfo);
+        if (countDatabase.CurrentState.Value == ReferencesCountDatabase.DatabaseState.Empty)
+        {
+            countDatabase.RunRefreshDatabase();
+            return;
+        }
+
+        if (!sessionSettings.ShowUsagePreviewOnClick)
+        {
+            countDatabase.RunRefreshDatabase();
+            return;
+        }
+
         ShowReferencesPreviewInBackground(solution, unityType);
     }
 
@@ -67,6 +89,11 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
         var headerProperty = new Property<string>($"{nameof(ShowReferencesPreviewInBackground)}::Header",
             $"Preparing Unity asset usage preview for {unityType.ClassName}");
         var previewLifetimeDefinition = Lifetime.Define(lifetime);
+        lock (previewLifetimeLock)
+        {
+            currentPreviewLifetimeDefinition?.Terminate();
+            currentPreviewLifetimeDefinition = previewLifetimeDefinition;
+        }
 
         var progress = BackgroundProgressBuilder.Create()
             .WithTitle($"{Names.SRDShort}: Unity asset usages")
@@ -113,6 +140,14 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
         }
         finally
         {
+            lock (previewLifetimeLock)
+            {
+                if (ReferenceEquals(currentPreviewLifetimeDefinition, previewLifetimeDefinition))
+                {
+                    currentPreviewLifetimeDefinition = null;
+                }
+            }
+
             previewLifetimeDefinition.Terminate();
         }
 
@@ -178,6 +213,7 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
 
     public void OnExtraActionClick(CodeInsightHighlightInfo highlightInfo, string actionId, ISolution solution)
     {
+        countDatabase.RunRefreshDatabase();
     }
 
     public string ProviderId => nameof(ClassUsageInsightsProvider);

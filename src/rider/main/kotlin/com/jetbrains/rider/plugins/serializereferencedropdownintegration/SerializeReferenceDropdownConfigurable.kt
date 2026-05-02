@@ -28,6 +28,10 @@ class SerializeReferenceDropdownConfigurable : SearchableConfigurable {
     private var defaultApplyBox: JCheckBox? = null
     private var showWarningBox: JCheckBox? = null
     private var movedFromBehaviourCombo: JComboBox<MovedFromBehaviour>? = null
+    private var showUsageCountBox: JCheckBox? = null
+    private var hideZeroUsageCountBox: JCheckBox? = null
+    private var autoRefreshUsageCountBox: JCheckBox? = null
+    private var showUsagePreviewOnClickBox: JCheckBox? = null
 
     override fun getId(): String = "tools.serialize.reference.dropdown"
 
@@ -68,6 +72,31 @@ class SerializeReferenceDropdownConfigurable : SearchableConfigurable {
         )
         content.add(Box.createVerticalStrut(JBUI.scale(12)))
 
+        showUsageCountBox = JCheckBox("Show SerializeReference usage count in editor").apply {
+            isSelected = getBooleanSetting(properties, sharedSettings, KEY_SHOW_USAGE_COUNT, true)
+        }
+        hideZeroUsageCountBox = JCheckBox("Hide usage count when there are no Unity asset usages").apply {
+            isSelected = getBooleanSetting(properties, sharedSettings, KEY_HIDE_ZERO_USAGE_COUNT, false)
+        }
+        autoRefreshUsageCountBox = JCheckBox("Refresh usage count database automatically").apply {
+            isSelected = getBooleanSetting(properties, sharedSettings, KEY_AUTO_REFRESH_USAGE_COUNT, false)
+        }
+        showUsagePreviewOnClickBox = JCheckBox("Show affected Unity asset files when clicking usage count").apply {
+            isSelected = getBooleanSetting(properties, sharedSettings, KEY_SHOW_USAGE_PREVIEW_ON_CLICK, true)
+        }
+        content.add(
+            section(
+                title = "Usage Count",
+                description = "Controls Code Vision hints above C# classes and the Unity asset preview opened from them.",
+            ) {
+                checkboxRow(showUsageCountBox!!)
+                checkboxRow(hideZeroUsageCountBox!!)
+                checkboxRow(autoRefreshUsageCountBox!!)
+                checkboxRow(showUsagePreviewOnClickBox!!)
+            },
+        )
+        content.add(Box.createVerticalStrut(JBUI.scale(12)))
+
         val movedFromBehaviour = JComboBox(MovedFromBehaviour.values()).apply {
             selectedItem = MovedFromBehaviour.fromStoredValue(getSetting(properties, sharedSettings, KEY_MOVED_FROM_BEHAVIOUR))
             maximumSize = Dimension(Int.MAX_VALUE, preferredSize.height)
@@ -98,6 +127,10 @@ class SerializeReferenceDropdownConfigurable : SearchableConfigurable {
             autoCheckBox?.isSelected != getBooleanSetting(properties, sharedSettings, KEY_AUTO_CHECK, true) ||
             defaultApplyBox?.isSelected != getBooleanSetting(properties, sharedSettings, KEY_DEFAULT_APPLY, false) ||
             showWarningBox?.isSelected != getBooleanSetting(properties, sharedSettings, KEY_SHOW_WARNING, true) ||
+            showUsageCountBox?.isSelected != getBooleanSetting(properties, sharedSettings, KEY_SHOW_USAGE_COUNT, true) ||
+            hideZeroUsageCountBox?.isSelected != getBooleanSetting(properties, sharedSettings, KEY_HIDE_ZERO_USAGE_COUNT, false) ||
+            autoRefreshUsageCountBox?.isSelected != getBooleanSetting(properties, sharedSettings, KEY_AUTO_REFRESH_USAGE_COUNT, false) ||
+            showUsagePreviewOnClickBox?.isSelected != getBooleanSetting(properties, sharedSettings, KEY_SHOW_USAGE_PREVIEW_ON_CLICK, true) ||
             movedFromBehaviourCombo?.selectedItem != MovedFromBehaviour.fromStoredValue(getSetting(properties, sharedSettings, KEY_MOVED_FROM_BEHAVIOUR))
     }
 
@@ -109,6 +142,10 @@ class SerializeReferenceDropdownConfigurable : SearchableConfigurable {
         setSetting(properties, sharedSettings, KEY_AUTO_CHECK, (autoCheckBox?.isSelected ?: true).toString())
         setSetting(properties, sharedSettings, KEY_DEFAULT_APPLY, (defaultApplyBox?.isSelected ?: false).toString())
         setSetting(properties, sharedSettings, KEY_SHOW_WARNING, (showWarningBox?.isSelected ?: true).toString())
+        setSetting(properties, sharedSettings, KEY_SHOW_USAGE_COUNT, (showUsageCountBox?.isSelected ?: true).toString())
+        setSetting(properties, sharedSettings, KEY_HIDE_ZERO_USAGE_COUNT, (hideZeroUsageCountBox?.isSelected ?: false).toString())
+        setSetting(properties, sharedSettings, KEY_AUTO_REFRESH_USAGE_COUNT, (autoRefreshUsageCountBox?.isSelected ?: false).toString())
+        setSetting(properties, sharedSettings, KEY_SHOW_USAGE_PREVIEW_ON_CLICK, (showUsagePreviewOnClickBox?.isSelected ?: true).toString())
         setSetting(properties, sharedSettings, KEY_MOVED_FROM_BEHAVIOUR, (movedFromBehaviourCombo?.selectedItem as? MovedFromBehaviour)?.storedValue ?: MovedFromBehaviour.ShowPopup.storedValue)
 
         saveSharedSettings(sharedSettings)
@@ -121,6 +158,10 @@ class SerializeReferenceDropdownConfigurable : SearchableConfigurable {
         autoCheckBox?.isSelected = getBooleanSetting(properties, sharedSettings, KEY_AUTO_CHECK, true)
         defaultApplyBox?.isSelected = getBooleanSetting(properties, sharedSettings, KEY_DEFAULT_APPLY, false)
         showWarningBox?.isSelected = getBooleanSetting(properties, sharedSettings, KEY_SHOW_WARNING, true)
+        showUsageCountBox?.isSelected = getBooleanSetting(properties, sharedSettings, KEY_SHOW_USAGE_COUNT, true)
+        hideZeroUsageCountBox?.isSelected = getBooleanSetting(properties, sharedSettings, KEY_HIDE_ZERO_USAGE_COUNT, false)
+        autoRefreshUsageCountBox?.isSelected = getBooleanSetting(properties, sharedSettings, KEY_AUTO_REFRESH_USAGE_COUNT, false)
+        showUsagePreviewOnClickBox?.isSelected = getBooleanSetting(properties, sharedSettings, KEY_SHOW_USAGE_PREVIEW_ON_CLICK, true)
         movedFromBehaviourCombo?.selectedItem = MovedFromBehaviour.fromStoredValue(getSetting(properties, sharedSettings, KEY_MOVED_FROM_BEHAVIOUR))
     }
 
@@ -131,6 +172,10 @@ class SerializeReferenceDropdownConfigurable : SearchableConfigurable {
         defaultApplyBox = null
         showWarningBox = null
         movedFromBehaviourCombo = null
+        showUsageCountBox = null
+        hideZeroUsageCountBox = null
+        autoRefreshUsageCountBox = null
+        showUsagePreviewOnClickBox = null
     }
 
     private fun section(title: String, description: String, fill: JPanel.() -> Unit): JPanel =
@@ -227,6 +272,10 @@ class SerializeReferenceDropdownConfigurable : SearchableConfigurable {
         const val KEY_DEFAULT_APPLY = "serializeReferenceDropdown.defaultApplyModifiedUnityAssetFiles"
         const val KEY_SHOW_WARNING = "serializeReferenceDropdown.showApplyModifiedUnityAssetFilesWarning"
         const val KEY_MOVED_FROM_BEHAVIOUR = "serializeReferenceDropdown.movedFromRefactoringSettings"
+        const val KEY_SHOW_USAGE_COUNT = "serializeReferenceDropdown.showUsageCountCodeVision"
+        const val KEY_HIDE_ZERO_USAGE_COUNT = "serializeReferenceDropdown.hideZeroUsageCountCodeVision"
+        const val KEY_AUTO_REFRESH_USAGE_COUNT = "serializeReferenceDropdown.autoRefreshUsageCountDatabase"
+        const val KEY_SHOW_USAGE_PREVIEW_ON_CLICK = "serializeReferenceDropdown.showUsagePreviewOnClick"
 
         val SHARED_SETTINGS_PATH: Path = Path.of(
             System.getProperty("user.home"),

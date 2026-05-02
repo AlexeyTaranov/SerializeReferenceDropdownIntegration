@@ -27,6 +27,18 @@ public class PluginSettings
 
     [SettingsEntry(MovedFromRefactoringSettings.ShowPopup, "MovedFrom attribute behaviour on rename")]
     public MovedFromRefactoringSettings MovedFromRefactoringSettings { get; set; }
+
+    [SettingsEntry(true, "Show SerializeReference usage count Code Vision")]
+    public bool ShowUsageCountCodeVision { get; set; }
+
+    [SettingsEntry(false, "Hide SerializeReference usage count when no Unity assets reference the type")]
+    public bool HideZeroUsageCountCodeVision { get; set; }
+
+    [SettingsEntry(false, "Automatically refresh SerializeReference usage count database")]
+    public bool AutoRefreshUsageCountDatabase { get; set; }
+
+    [SettingsEntry(true, "Show Unity asset usage preview when clicking usage count")]
+    public bool ShowUsagePreviewOnClick { get; set; }
 }
 
 [SolutionComponent(Instantiation.DemandAnyThreadSafe)]
@@ -37,6 +49,10 @@ public class PluginSessionSettings
     private const string KeyDefaultApplyModifiedUnityAssetFiles = "serializeReferenceDropdown.defaultApplyModifiedUnityAssetFiles";
     private const string KeyShowApplyModifiedUnityAssetFilesWarning = "serializeReferenceDropdown.showApplyModifiedUnityAssetFilesWarning";
     private const string KeyMovedFromRefactoringSettings = "serializeReferenceDropdown.movedFromRefactoringSettings";
+    private const string KeyShowUsageCountCodeVision = "serializeReferenceDropdown.showUsageCountCodeVision";
+    private const string KeyHideZeroUsageCountCodeVision = "serializeReferenceDropdown.hideZeroUsageCountCodeVision";
+    private const string KeyAutoRefreshUsageCountDatabase = "serializeReferenceDropdown.autoRefreshUsageCountDatabase";
+    private const string KeyShowUsagePreviewOnClick = "serializeReferenceDropdown.showUsagePreviewOnClick";
 
     private readonly ISettingsStore settingsStore;
 
@@ -96,6 +112,46 @@ public class PluginSessionSettings
         {
             Write(settings => settings.ShowApplyModifiedUnityAssetFilesWarning, value);
             WriteSharedSetting(KeyShowApplyModifiedUnityAssetFilesWarning, value.ToString());
+        }
+    }
+
+    public bool ShowUsageCountCodeVision
+    {
+        get => ReadBool(KeyShowUsageCountCodeVision, Read(settings => settings.ShowUsageCountCodeVision));
+        set
+        {
+            Write(settings => settings.ShowUsageCountCodeVision, value);
+            WriteSharedSetting(KeyShowUsageCountCodeVision, value.ToString());
+        }
+    }
+
+    public bool HideZeroUsageCountCodeVision
+    {
+        get => ReadBool(KeyHideZeroUsageCountCodeVision, Read(settings => settings.HideZeroUsageCountCodeVision));
+        set
+        {
+            Write(settings => settings.HideZeroUsageCountCodeVision, value);
+            WriteSharedSetting(KeyHideZeroUsageCountCodeVision, value.ToString());
+        }
+    }
+
+    public bool AutoRefreshUsageCountDatabase
+    {
+        get => ReadBool(KeyAutoRefreshUsageCountDatabase, Read(settings => settings.AutoRefreshUsageCountDatabase));
+        set
+        {
+            Write(settings => settings.AutoRefreshUsageCountDatabase, value);
+            WriteSharedSetting(KeyAutoRefreshUsageCountDatabase, value.ToString());
+        }
+    }
+
+    public bool ShowUsagePreviewOnClick
+    {
+        get => ReadBool(KeyShowUsagePreviewOnClick, Read(settings => settings.ShowUsagePreviewOnClick));
+        set
+        {
+            Write(settings => settings.ShowUsagePreviewOnClick, value);
+            WriteSharedSetting(KeyShowUsagePreviewOnClick, value.ToString());
         }
     }
 

@@ -40,7 +40,7 @@ public class ReferencesCountDatabase
 
     public ReferencesCountDatabase(Lifetime lifetime, ISolution solution, IShellLocks myShellLocks,
         BackgroundProgressManager myBackgroundProgressManager, UnityAssetReferenceScanner scanner,
-        PluginDiagnostics diagnostics)
+        PluginDiagnostics diagnostics, PluginSessionSettings sessionSettings)
     {
         currentState = new ViewableProperty<DatabaseState>(DatabaseState.Empty);
         this.lifetime = lifetime;
@@ -49,6 +49,11 @@ public class ReferencesCountDatabase
         this.myBackgroundProgressManager = myBackgroundProgressManager;
         this.scanner = scanner;
         this.diagnostics = diagnostics;
+
+        if (sessionSettings.AutoRefreshUsageCountDatabase)
+        {
+            RunRefreshDatabase();
+        }
     }
 
     public int GetUsagesCount(UnityTypeData type)
@@ -100,8 +105,9 @@ public class ReferencesCountDatabase
                 }
 
                 typesCount = result;
-                InvalidateSolution();
+                currentState.Value = DatabaseState.Filled;
                 refreshDatabaseLifetimeDefinition.Terminate();
+                InvalidateSolution();
             }
             catch (Exception _)
             {
@@ -111,8 +117,6 @@ public class ReferencesCountDatabase
                 return;
                 //
             }
-
-            currentState.Value = DatabaseState.Filled;
 
             void DropDatabase()
             {

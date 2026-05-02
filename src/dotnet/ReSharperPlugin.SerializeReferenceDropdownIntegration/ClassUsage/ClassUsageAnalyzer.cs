@@ -5,6 +5,7 @@ using JetBrains.ReSharper.Feature.Services.Daemon;
 using JetBrains.ReSharper.Psi.CSharp.Tree;
 using JetBrains.ReSharper.Psi.Tree;
 using JetBrains.ReSharper.Psi.Util;
+using JetBrains.Rider.Model;
 using ReSharperPlugin.SerializeReferenceDropdownIntegration.Extensions;
 using ReSharperPlugin.SerializeReferenceDropdownIntegration.Infrastructure;
 using ReSharperPlugin.SerializeReferenceDropdownIntegration.Unity.AssetsDatabase;
@@ -19,14 +20,17 @@ public class ClassUsageAnalyzer : ElementProblemAnalyzer<IClassDeclaration>
     private readonly ClassUsageInsightsProvider codeInsightsProvider;
     private readonly ReferencesCountDatabase countDatabase;
     private readonly PluginDiagnostics diagnostics;
+    private readonly PluginSessionSettings sessionSettings;
 
     public ClassUsageAnalyzer(ClassUsageInsightsProvider codeInsightsProvider,
         ReferencesCountDatabase assetsSerializeReferencesCountDatabase,
-        PluginDiagnostics diagnostics)
+        PluginDiagnostics diagnostics,
+        PluginSessionSettings sessionSettings)
     {
         this.codeInsightsProvider = codeInsightsProvider;
         this.countDatabase = assetsSerializeReferencesCountDatabase;
         this.diagnostics = diagnostics;
+        this.sessionSettings = sessionSettings;
     }
 
     protected override void Run(IClassDeclaration element, ElementProblemAnalyzerData data,
@@ -34,6 +38,11 @@ public class ClassUsageAnalyzer : ElementProblemAnalyzer<IClassDeclaration>
     {
         try
         {
+            if (!sessionSettings.ShowUsageCountCodeVision)
+            {
+                return;
+            }
+
             if (element.DeclaredElement?.IsFromUnityProject() != true)
             {
                 return;
@@ -62,13 +71,21 @@ public class ClassUsageAnalyzer : ElementProblemAnalyzer<IClassDeclaration>
 
             var dbState = countDatabase.CurrentState.Value;
 
-            var displayText = $"{Names.SRDShort}: {dbState}";
-            var tooltip = displayText;
-
-            if (dbState == ReferencesCountDatabase.DatabaseState.Filled)
+            var displayText = $"{Names.SRDShort}: assets not analyzed";
+            var tooltip = "Unity asset files were not analyzed yet. Refresh the usage database to show SerializeReference usages.";
+            if (dbState == ReferencesCountDatabase.DatabaseState.Refreshing)
+            {
+                displayText = $"{Names.SRDShort}: analyzing assets...";
+                tooltip = "SerializeReference usage database is being refreshed.";
+            }
+            else if (dbState == ReferencesCountDatabase.DatabaseState.Filled)
             {
                 var unityType = element.ExtractUnityTypeFromClassDeclaration();
                 var usageCount = countDatabase.GetUsagesCount(unityType);
+                if (usageCount == 0 && sessionSettings.HideZeroUsageCountCodeVision)
+                {
+                    return;
+                }
 
                 displayText = $"{Names.SRDShort}: {usageCount} usages";
                 tooltip = $"SerializeReferenceDropdown: '{unityType.ClassName}' {usageCount} - usages in project";
@@ -79,9 +96,16 @@ public class ClassUsageAnalyzer : ElementProblemAnalyzer<IClassDeclaration>
                     element.GetNameDocumentRange(),
                     displayText: displayText,
                     tooltipText: tooltip,
-                    moreText: "More text",
+                    moreText: "Refresh usages",
                     codeInsightsProvider,
-                    element.DeclaredElement, null));
+                    element.DeclaredElement,
+                    null,
+                    new System.Collections.Generic.List<CodeVisionEntryExtraActionModel>
+                    {
+                        new CodeVisionEntryExtraActionModel(
+                            ClassUsageInsightsProvider.RefreshUsageDatabaseActionId,
+                            "Refresh usage database")
+                    }));
         }
         catch (Exception e)
         {
