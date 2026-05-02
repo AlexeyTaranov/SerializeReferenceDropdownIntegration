@@ -39,6 +39,16 @@ public class PluginSettings
 
     [SettingsEntry(true, "Show Unity asset usage preview when clicking usage count")]
     public bool ShowUsagePreviewOnClick { get; set; }
+
+    [SettingsEntry(UnityWindowFocusSwitchSettings.ShowPopup, "Switch to Unity after sending Unity bridge commands")]
+    public UnityWindowFocusSwitchSettings UnityWindowFocusSwitchSettings { get; set; }
+}
+
+public enum UnityWindowFocusSwitchSettings
+{
+    ShowPopup,
+    AlwaysSwitch,
+    NeverSwitch
 }
 
 [SolutionComponent(Instantiation.DemandAnyThreadSafe)]
@@ -53,6 +63,7 @@ public class PluginSessionSettings
     private const string KeyHideZeroUsageCountCodeVision = "serializeReferenceDropdown.hideZeroUsageCountCodeVision";
     private const string KeyAutoRefreshUsageCountDatabase = "serializeReferenceDropdown.autoRefreshUsageCountDatabase";
     private const string KeyShowUsagePreviewOnClick = "serializeReferenceDropdown.showUsagePreviewOnClick";
+    private const string KeyUnityWindowFocusSwitchSettings = "serializeReferenceDropdown.unityWindowFocusSwitchSettings";
 
     private readonly ISettingsStore settingsStore;
 
@@ -152,6 +163,16 @@ public class PluginSessionSettings
         {
             Write(settings => settings.ShowUsagePreviewOnClick, value);
             WriteSharedSetting(KeyShowUsagePreviewOnClick, value.ToString());
+        }
+    }
+
+    public UnityWindowFocusSwitchSettings UnityWindowFocusSwitchSettings
+    {
+        get => ReadEnum(KeyUnityWindowFocusSwitchSettings, Read(settings => settings.UnityWindowFocusSwitchSettings));
+        set
+        {
+            Write(settings => settings.UnityWindowFocusSwitchSettings, value);
+            WriteSharedSetting(KeyUnityWindowFocusSwitchSettings, value.ToString());
         }
     }
 

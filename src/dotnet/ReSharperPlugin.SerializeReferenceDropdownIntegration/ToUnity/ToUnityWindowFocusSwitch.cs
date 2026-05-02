@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Linq;
 using System.Runtime.InteropServices;
 using JetBrains.Application.Parts;
 using JetBrains.ProjectModel;
@@ -30,10 +31,7 @@ public class ToUnityWindowFocusSwitch
             return;
         }
 
-        sessionSettings.NeedSwitchToUnityApp ??= MessageBox.ShowYesNoCancel("Need Switch to Unity in this session?",
-            Names.SRDShort);
-
-        if (sessionSettings.NeedSwitchToUnityApp != true)
+        if (!ShouldSwitchToUnityApplication())
         {
             return;
         }
@@ -55,12 +53,86 @@ public class ToUnityWindowFocusSwitch
         }
     }
 
+    private bool ShouldSwitchToUnityApplication()
+    {
+        switch (sessionSettings.UnityWindowFocusSwitchSettings)
+        {
+            case UnityWindowFocusSwitchSettings.AlwaysSwitch:
+                return true;
+            case UnityWindowFocusSwitchSettings.NeverSwitch:
+                return false;
+            default:
+                sessionSettings.NeedSwitchToUnityApp ??= MessageBox.ShowYesNoCancel(
+                    "Switch to Unity after sending commands in this session?",
+                    Names.SRDShort);
+                return sessionSettings.NeedSwitchToUnityApp == true;
+        }
+    }
+
     private void SwitchToUnityOnMacOs()
     {
-        using var process = Process.Start("osascript", "-e \"tell application \\\"Unity\\\" to activate\"");
+        var unityProcesses = Process.GetProcessesByName("Unity");
+        try
+        {
+            var unityProcess = unityProcesses.FirstOrDefault(process => process.MainWindowHandle != IntPtr.Zero) ??
+                               unityProcesses.FirstOrDefault();
+            if (unityProcess == null)
+            {
+                diagnostics.Warn("Unity process was not found while trying to focus Unity on macOS.");
+                MessageBox.ShowError("Unable to find an open Unity window.", Names.SRDShort);
+                return;
+            }
+
+            var appPath = TryGetUnityApplicationPath(unityProcess);
+            if (!string.IsNullOrEmpty(appPath))
+            {
+                StartMacOsFocusProcess("/usr/bin/open", $"-a \"{appPath}\"");
+                return;
+            }
+
+            StartMacOsFocusProcess("/usr/bin/osascript",
+                $"-e \"tell application \\\"System Events\\\" to set frontmost of first application process whose unix id is {unityProcess.Id} to true\"");
+        }
+        finally
+        {
+            foreach (var process in unityProcesses)
+            {
+                process.Dispose();
+            }
+        }
+    }
+
+    private static string TryGetUnityApplicationPath(Process unityProcess)
+    {
+        try
+        {
+            var executablePath = unityProcess.MainModule?.FileName;
+            if (string.IsNullOrEmpty(executablePath))
+            {
+                return string.Empty;
+            }
+
+            const string applicationPathSuffix = ".app/Contents/MacOS/Unity";
+            var applicationPathEndIndex = executablePath.IndexOf(applicationPathSuffix, StringComparison.Ordinal);
+            if (applicationPathEndIndex < 0)
+            {
+                return string.Empty;
+            }
+
+            return executablePath.Substring(0, applicationPathEndIndex + ".app".Length);
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
+    private void StartMacOsFocusProcess(string fileName, string arguments)
+    {
+        using var process = Process.Start(fileName, arguments);
         if (process == null)
         {
-            diagnostics.Warn("osascript returned no process while trying to focus Unity.");
+            diagnostics.Warn($"'{fileName}' returned no process while trying to focus Unity.");
         }
     }
 

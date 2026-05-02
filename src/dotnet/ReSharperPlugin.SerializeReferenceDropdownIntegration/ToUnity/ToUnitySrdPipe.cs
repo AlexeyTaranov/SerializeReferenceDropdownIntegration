@@ -20,12 +20,15 @@ public class ToUnitySrdPipe
 
     private readonly PluginSessionSettings sessionSettings;
     private readonly PluginDiagnostics diagnostics;
+    private readonly ToUnityWindowFocusSwitch windowFocusSwitch;
     private bool searchWindowHintShown;
 
-    public ToUnitySrdPipe(PluginSessionSettings sessionSettings, PluginDiagnostics diagnostics)
+    public ToUnitySrdPipe(PluginSessionSettings sessionSettings, PluginDiagnostics diagnostics,
+        ToUnityWindowFocusSwitch windowFocusSwitch)
     {
         this.sessionSettings = sessionSettings;
         this.diagnostics = diagnostics;
+        this.windowFocusSwitch = windowFocusSwitch;
     }
 
     public void OpenUnitySearchToolWindowWithType(string typeName)
@@ -38,7 +41,7 @@ public class ToUnitySrdPipe
             return;
         }
 
-        Task.Run(() => SendCommandToPipe(BuildJsonCommand(ShowSearchTypeWindowCommand, typeName),
+        Task.Run(() => SendCommandToPipeAndSwitchFocus(BuildJsonCommand(ShowSearchTypeWindowCommand, typeName),
             $"type '{typeName}'"));
         
         if (searchWindowHintShown == false)
@@ -56,8 +59,14 @@ public class ToUnitySrdPipe
             return;
         }
 
-        Task.Run(() => SendCommandToPipe(BuildJsonCommand(OpenAssetCommand, relativeAssetPath),
+        Task.Run(() => SendCommandToPipeAndSwitchFocus(BuildJsonCommand(OpenAssetCommand, relativeAssetPath),
             $"asset '{relativeAssetPath}'"));
+    }
+
+    private void SendCommandToPipeAndSwitchFocus(string command, string diagnosticTarget)
+    {
+        SendCommandToPipe(command, diagnosticTarget);
+        windowFocusSwitch.SwitchToUnityApplication();
     }
 
     private void SendCommandToPipe(string command, string diagnosticTarget)

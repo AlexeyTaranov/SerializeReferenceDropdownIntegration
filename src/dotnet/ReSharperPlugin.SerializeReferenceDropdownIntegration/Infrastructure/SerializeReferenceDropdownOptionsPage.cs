@@ -192,7 +192,8 @@ public class SerializeReferenceDropdownOptionsPage : BeSimpleOptionsPage
             var defaultApply = optionsSettingsSmartContext.GetValue((PluginSettings settings) => settings.DefaultApplyModifiedUnityAssetFiles);
             var showWarning = optionsSettingsSmartContext.GetValue((PluginSettings settings) => settings.ShowApplyModifiedUnityAssetFilesWarning);
             var movedFromBehaviour = optionsSettingsSmartContext.GetValue((PluginSettings settings) => settings.MovedFromRefactoringSettings);
-            SerializeReferenceDropdownOptions.Log($"settings snapshot showBehaviour={showBehaviour}, autoCheck={autoCheck}, defaultApply={defaultApply}, showWarning={showWarning}, movedFrom={movedFromBehaviour}.");
+            var focusSwitch = optionsSettingsSmartContext.GetValue((PluginSettings settings) => settings.UnityWindowFocusSwitchSettings);
+            SerializeReferenceDropdownOptions.Log($"settings snapshot showBehaviour={showBehaviour}, autoCheck={autoCheck}, defaultApply={defaultApply}, showWarning={showWarning}, movedFrom={movedFromBehaviour}, focusSwitch={focusSwitch}.");
         }
         catch (Exception exception)
         {
@@ -222,7 +223,11 @@ public class SerializeReferenceDropdownOptionsPage : BeSimpleOptionsPage
         AddComboEnum((PluginSettings settings) => settings.MovedFromRefactoringSettings,
             "MovedFrom on class rename:");
 
+        AddHeader("Unity integration");
+        AddComboEnum((PluginSettings settings) => settings.UnityWindowFocusSwitchSettings,
+            "Switch to Unity after bridge command:");
+
         AddKeyword("SerializeReference", "Unity", "YAML", "asset", nameof(ModifyYamlShowBehaviour),
-            nameof(MovedFromRefactoringSettings), "MovedFrom");
+            nameof(MovedFromRefactoringSettings), nameof(UnityWindowFocusSwitchSettings), "MovedFrom");
     }
 }

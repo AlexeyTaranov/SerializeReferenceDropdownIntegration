@@ -36,7 +36,6 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
     private readonly PluginDiagnostics diagnostics;
     private readonly PluginSessionSettings sessionSettings;
     private readonly ToUnitySrdPipe toUnitySrdPipe;
-    private readonly ToUnityWindowFocusSwitch toUnityWindowFocusSwitch;
     private readonly IDialogHost dialogHost;
     private readonly object previewLifetimeLock = new();
     private LifetimeDefinition currentPreviewLifetimeDefinition;
@@ -49,7 +48,6 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
         PluginDiagnostics diagnostics,
         PluginSessionSettings sessionSettings,
         ToUnitySrdPipe toUnitySrdPipe,
-        ToUnityWindowFocusSwitch toUnityWindowFocusSwitch,
         IDialogHost dialogHost)
     {
         this.lifetime = lifetime;
@@ -60,7 +58,6 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
         this.diagnostics = diagnostics;
         this.sessionSettings = sessionSettings;
         this.toUnitySrdPipe = toUnitySrdPipe;
-        this.toUnityWindowFocusSwitch = toUnityWindowFocusSwitch;
         this.dialogHost = dialogHost;
     }
 
@@ -198,7 +195,6 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
     private void OpenAssetInUnity(string assetPath)
     {
         toUnitySrdPipe.OpenUnityAsset(assetPath);
-        toUnityWindowFocusSwitch.SwitchToUnityApplication();
     }
 
     public void OnExtraActionClick(CodeInsightHighlightInfo highlightInfo, string actionId, ISolution solution)
