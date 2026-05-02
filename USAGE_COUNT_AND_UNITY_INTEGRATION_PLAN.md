@@ -8,8 +8,9 @@ This plan tracks the next improvements for SerializeReference usage preview and 
 - Clicking `Usages Count` currently opens a text preview with Unity asset file paths and line numbers.
 - The preview is read-only and shown in a `MessageBox`.
 - Asset entries in the preview are not clickable yet.
-- `ToUnitySrdPipe` can send a type search command to Unity through a named pipe.
-- `ToUnityWindowFocusSwitch` currently focuses Unity only on macOS through `osascript`.
+- `ToUnitySrdPipe` can send JSON type-search and asset-open commands to Unity through a named pipe.
+- `ToUnitySrdPipe` uses a connection timeout so Rider does not hang when Unity or the Unity bridge is unavailable.
+- `ToUnityWindowFocusSwitch` can focus Unity on macOS through `osascript` and on Windows through `user32.dll`.
 
 ## Remaining Usage Count Work
 
@@ -26,35 +27,29 @@ This plan tracks the next improvements for SerializeReference usage preview and 
 
 ## Unity Integration Work
 
-- Extend `ToUnitySrdPipe` with a new method for opening a Unity asset.
-- Keep the existing type search command for compatibility.
-- Add a new command format for asset opening, for example:
-  - `OpenAsset-{relativeAssetPath}`
-- Prefer moving to JSON commands later to avoid escaping issues with paths, spaces, and special symbols.
-- Add a timeout to pipe connection so Rider does not hang if Unity or the Unity bridge is unavailable.
+- Keep command names stable:
+  - `ShowSearchTypeWindow`
+  - `OpenAsset`
+- Use JSON pipe messages:
+  - `{"version":1,"command":"ShowSearchTypeWindow","payload":"Namespace.TypeName"}`
+  - `{"version":1,"command":"OpenAsset","payload":"Assets/Foo.prefab"}`
 - Show a clear error if the Unity bridge cannot be reached.
 
 ## Windows Support
 
 - Keep named pipe usage, because `NamedPipeClientStream(".", PipeName, ...)` can work on Windows when the Unity-side bridge listens on the same pipe name.
-- Add Windows focus support in `ToUnityWindowFocusSwitch`.
-- Use `Process.GetProcessesByName("Unity")` to find Unity.
-- Use `user32.dll` interop for `ShowWindow` and `SetForegroundWindow`.
 - Keep macOS support through `osascript`.
 - For unsupported platforms, skip focus switching and keep the pipe command behavior.
 
 ## Suggested Implementation Order
 
-1. Add `ToUnitySrdPipe.OpenUnityAsset(relativeAssetPath)` with connection timeout and diagnostics.
-2. Add Windows Unity focus support.
-3. Replace usage preview `MessageBox` with a simple structured UI.
-4. Wire asset row click or button to `OpenUnityAsset`.
-5. Smoke test on macOS first, then Windows with the Unity-side bridge.
-6. Consider JSON-based pipe commands once both `ShowSearchTypeWindow` and `OpenAsset` exist.
+1. Replace usage preview `MessageBox` with a simple structured UI.
+2. Wire asset row click or button to `OpenUnityAsset`.
+3. Smoke test on macOS first, then Windows with the Unity-side bridge.
+4. Keep string-command fallback in Unity temporarily if older Rider builds must remain supported.
 
 ## Open Questions
 
-- What exact command name does the Unity package expect for opening an asset?
 - Should Rider send project-relative paths like `Assets/Foo.prefab`, or absolute file paths?
 - Should opening an asset also ping/select it in Project view, open it in Inspector, or open the scene/prefab stage?
 - Should usage preview show only asset file rows, or also individual YAML line references?
