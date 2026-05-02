@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using JetBrains.Application.Parts;
 using JetBrains.Application.Threading;
 using JetBrains.DataFlow;
+using JetBrains.IDE.UI;
 using JetBrains.Lifetimes;
 using JetBrains.ProjectModel;
 using JetBrains.ProjectModel.ProjectsHost.SolutionHost.Progress;
@@ -37,6 +37,7 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
     private readonly PluginSessionSettings sessionSettings;
     private readonly ToUnitySrdPipe toUnitySrdPipe;
     private readonly ToUnityWindowFocusSwitch toUnityWindowFocusSwitch;
+    private readonly IDialogHost dialogHost;
     private readonly object previewLifetimeLock = new();
     private LifetimeDefinition currentPreviewLifetimeDefinition;
 
@@ -48,7 +49,8 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
         PluginDiagnostics diagnostics,
         PluginSessionSettings sessionSettings,
         ToUnitySrdPipe toUnitySrdPipe,
-        ToUnityWindowFocusSwitch toUnityWindowFocusSwitch)
+        ToUnityWindowFocusSwitch toUnityWindowFocusSwitch,
+        IDialogHost dialogHost)
     {
         this.lifetime = lifetime;
         this.shellLocks = shellLocks;
@@ -59,6 +61,7 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
         this.sessionSettings = sessionSettings;
         this.toUnitySrdPipe = toUnitySrdPipe;
         this.toUnityWindowFocusSwitch = toUnityWindowFocusSwitch;
+        this.dialogHost = dialogHost;
     }
 
     public bool IsAvailableIn(ISolution solution)
@@ -137,7 +140,8 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
                 return;
             }
 
-            var preview = BuildReferencesPreview(solution, references);
+            var preview = UnityAssetUsagePreviewBuilder.Build(solution.SolutionDirectory.FullPath,
+                ToUsagePreviewReferences(references));
             await shellLocks.StartMainRead(previewLifetime, () => ShowReferencesPreview(preview));
         }
         catch (Exception exception)
@@ -173,84 +177,28 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
         return classDeclaration.ExtractUnityTypeFromClassDeclaration();
     }
 
-    private void ShowReferencesPreview(ReferencesPreview preview)
-    {
-        if (preview.FirstAssetPath == null)
-        {
-            MessageBox.ShowInfo(preview.Message, $"{Names.SRDShort}: Unity asset usages");
-            return;
-        }
-
-        var openAsset = MessageBox.ShowYesNo(
-            $"{preview.Message}\n\nOpen first asset in Unity?\n{preview.FirstAssetPath}",
-            $"{Names.SRDShort}: Unity asset usages");
-        if (!openAsset)
-        {
-            return;
-        }
-
-        toUnitySrdPipe.OpenUnityAsset(preview.FirstAssetPath);
-        toUnityWindowFocusSwitch.SwitchToUnityApplication();
-    }
-
-    private static ReferencesPreview BuildReferencesPreview(ISolution solution,
+    private static IReadOnlyList<UnityAssetUsageReferenceData> ToUsagePreviewReferences(
         IReadOnlyList<UnityAssetReferenceScanner.TypeReferenceData> references)
     {
-        if (references == null)
-        {
-            return new ReferencesPreview("Unity asset usage scan was cancelled.", null);
-        }
-
-        if (references.Count == 0)
-        {
-            return new ReferencesPreview("No Unity asset files reference this type.", null);
-        }
-
-        const int maxFilesInPreview = 30;
-        var solutionPath = solution.SolutionDirectory.FullPath;
-        var firstAssetPath = NormalizeUnityAssetPath(GetRelativePath(solutionPath, references[0].FilePath));
-        var totalReferences = references.Sum(reference => reference.References.Count + reference.PrefabOverrides.Count);
-        var previewLines = references
-            .Take(maxFilesInPreview)
-            .Select(reference =>
-            {
-                var relativePath = NormalizeUnityAssetPath(GetRelativePath(solutionPath, reference.FilePath));
-                var lineNumbers = reference.References
+        return references?.Select(reference => new UnityAssetUsageReferenceData(
+                reference.FilePath,
+                reference.References
                     .Select(referenceLine => referenceLine.LineIndex + 1)
                     .Concat(reference.PrefabOverrides.Select(prefabOverride => prefabOverride.LineIndex + 1))
-                    .OrderBy(lineIndex => lineIndex)
-                    .ToArray();
-                return $"{relativePath}: {lineNumbers.Length} references, lines {string.Join(", ", lineNumbers)}";
-            });
-
-        var preview = string.Join("\n", previewLines);
-        if (references.Count > maxFilesInPreview)
-        {
-            preview += $"\n...and {references.Count - maxFilesInPreview} more files.";
-        }
-
-        return new ReferencesPreview(
-            $"Found {totalReferences} references in {references.Count} Unity asset files.\n\n{preview}",
-            firstAssetPath);
+                    .ToArray()))
+            .ToArray();
     }
 
-    private static string GetRelativePath(string rootPath, string filePath)
+    private void ShowReferencesPreview(UnityAssetUsagePreview preview)
     {
-        var normalizedRoot = rootPath.TrimEnd(System.IO.Path.DirectorySeparatorChar,
-            System.IO.Path.AltDirectorySeparatorChar);
-        if (filePath.StartsWith(normalizedRoot))
-        {
-            return filePath.Substring(normalizedRoot.Length)
-                .TrimStart(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar);
-        }
-
-        return filePath;
+        var dialog = new UnityAssetUsagePreviewDialog(dialogHost, lifetime, OpenAssetInUnity);
+        dialog.Show(preview);
     }
 
-    private static string NormalizeUnityAssetPath(string path)
+    private void OpenAssetInUnity(string assetPath)
     {
-        return path.Replace(Path.DirectorySeparatorChar, '/')
-            .Replace(Path.AltDirectorySeparatorChar, '/');
+        toUnitySrdPipe.OpenUnityAsset(assetPath);
+        toUnityWindowFocusSwitch.SwitchToUnityApplication();
     }
 
     public void OnExtraActionClick(CodeInsightHighlightInfo highlightInfo, string actionId, ISolution solution)
@@ -264,16 +212,4 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
 
     public ICollection<CodeVisionRelativeOrdering> RelativeOrderings => new List<CodeVisionRelativeOrdering>()
         { new CodeVisionRelativeOrderingFirst() };
-
-    private sealed class ReferencesPreview
-    {
-        public ReferencesPreview(string message, string firstAssetPath)
-        {
-            Message = message;
-            FirstAssetPath = firstAssetPath;
-        }
-
-        public string Message { get; }
-        public string FirstAssetPath { get; }
-    }
 }
