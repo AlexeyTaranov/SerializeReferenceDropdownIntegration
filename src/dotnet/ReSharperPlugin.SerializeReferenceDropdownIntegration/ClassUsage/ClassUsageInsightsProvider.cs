@@ -37,6 +37,7 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
     private readonly PluginSessionSettings sessionSettings;
     private readonly ToUnitySrdPipe toUnitySrdPipe;
     private readonly IDialogHost dialogHost;
+    private readonly IBePopupHost popupHost;
     private readonly object previewLifetimeLock = new();
     private LifetimeDefinition currentPreviewLifetimeDefinition;
 
@@ -48,7 +49,8 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
         PluginDiagnostics diagnostics,
         PluginSessionSettings sessionSettings,
         ToUnitySrdPipe toUnitySrdPipe,
-        IDialogHost dialogHost)
+        IDialogHost dialogHost,
+        IBePopupHost popupHost)
     {
         this.lifetime = lifetime;
         this.shellLocks = shellLocks;
@@ -59,6 +61,7 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
         this.sessionSettings = sessionSettings;
         this.toUnitySrdPipe = toUnitySrdPipe;
         this.dialogHost = dialogHost;
+        this.popupHost = popupHost;
     }
 
     public bool IsAvailableIn(ISolution solution)
@@ -93,10 +96,11 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
             return;
         }
 
-        ShowReferencesPreviewInBackground(solution, unityType);
+        ShowReferencesPreviewInBackground(solution, unityType, clickInfo);
     }
 
-    private void ShowReferencesPreviewInBackground(ISolution solution, UnityTypeData unityType)
+    private void ShowReferencesPreviewInBackground(ISolution solution, UnityTypeData unityType,
+        CodeInsightsClickInfo clickInfo)
     {
         var progressProperty =
             new Property<double>($"{nameof(ShowReferencesPreviewInBackground)}::Progress", 0).EnsureNotOutside(0.0, 1.0);
@@ -119,12 +123,12 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
 
         shellLocks.StartBackgroundAsync(previewLifetimeDefinition.Lifetime, () =>
             FetchAndShowReferencesPreviewAsync(solution, unityType, progressProperty, headerProperty,
-                previewLifetimeDefinition)).NoAwait();
+                previewLifetimeDefinition, clickInfo)).NoAwait();
     }
 
     private async Task FetchAndShowReferencesPreviewAsync(ISolution solution, UnityTypeData unityType,
         Property<double> progressProperty, Property<string> headerProperty,
-        LifetimeDefinition previewLifetimeDefinition)
+        LifetimeDefinition previewLifetimeDefinition, CodeInsightsClickInfo clickInfo)
     {
         try
         {
@@ -139,7 +143,7 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
 
             var preview = UnityAssetUsagePreviewBuilder.Build(solution.SolutionDirectory.FullPath,
                 ToUsagePreviewReferences(references));
-            await shellLocks.StartMainRead(previewLifetime, () => ShowReferencesPreview(preview));
+            await shellLocks.StartMainRead(previewLifetime, () => ShowReferencesPreview(preview, clickInfo));
         }
         catch (Exception exception)
         {
@@ -186,10 +190,10 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
             .ToArray();
     }
 
-    private void ShowReferencesPreview(UnityAssetUsagePreview preview)
+    private void ShowReferencesPreview(UnityAssetUsagePreview preview, CodeInsightsClickInfo clickInfo)
     {
-        var dialog = new UnityAssetUsagePreviewDialog(dialogHost, lifetime, OpenAssetInUnity);
-        dialog.Show(preview);
+        var dialog = new UnityAssetUsagePreviewDialog(dialogHost, popupHost, lifetime, diagnostics, OpenAssetInUnity);
+        dialog.Show(preview, clickInfo);
     }
 
     private void OpenAssetInUnity(string assetPath)

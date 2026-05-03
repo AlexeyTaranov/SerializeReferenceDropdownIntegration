@@ -46,6 +46,37 @@ public sealed class UnityAssetUsagePreviewFile
     public string AssetPath { get; }
     public IReadOnlyList<int> LineNumbers { get; }
     public int ReferencesCount => LineNumbers.Count;
+    public string AssetName => Path.GetFileNameWithoutExtension(AssetPath);
+    public string AssetDirectory => NormalizeDirectory(Path.GetDirectoryName(AssetPath));
+    public UnityAssetUsagePreviewFileKind Kind => GetKind(AssetPath);
+
+    private static UnityAssetUsagePreviewFileKind GetKind(string assetPath)
+    {
+        switch (Path.GetExtension(assetPath))
+        {
+            case ".unity":
+                return UnityAssetUsagePreviewFileKind.Scene;
+            case ".prefab":
+                return UnityAssetUsagePreviewFileKind.Prefab;
+            default:
+                return UnityAssetUsagePreviewFileKind.ScriptableObject;
+        }
+    }
+
+    private static string NormalizeDirectory(string directory)
+    {
+        return string.IsNullOrEmpty(directory)
+            ? string.Empty
+            : directory.Replace(Path.DirectorySeparatorChar, '/')
+                .Replace(Path.AltDirectorySeparatorChar, '/');
+    }
+}
+
+public enum UnityAssetUsagePreviewFileKind
+{
+    Scene,
+    Prefab,
+    ScriptableObject
 }
 
 public static class UnityAssetUsagePreviewBuilder
