@@ -1,6 +1,6 @@
 using System;
 
-namespace SerializeReferenceDropdownBridge
+namespace SerializeReferenceDropdownBridge.AsmdefRename
 {
     [Serializable]
     internal sealed class AsmdefRenameRequest

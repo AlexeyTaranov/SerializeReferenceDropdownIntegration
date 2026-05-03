@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEngine;
 
-namespace SerializeReferenceDropdownBridge
+namespace SerializeReferenceDropdownBridge.AsmdefRename
 {
     internal sealed class AsmdefRenameScanResult
     {

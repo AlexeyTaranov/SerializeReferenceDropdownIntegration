@@ -2,7 +2,7 @@ using System;
 using UnityEditor;
 using UnityEngine;
 
-namespace SerializeReferenceDropdownBridge
+namespace SerializeReferenceDropdownBridge.AsmdefRename
 {
     internal sealed class AsmdefRenameWindow : EditorWindow
     {

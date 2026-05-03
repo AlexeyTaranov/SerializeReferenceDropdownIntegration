@@ -8,7 +8,7 @@ using System.Diagnostics;
 using UnityEditor;
 using UnityEngine;
 
-namespace SerializeReferenceDropdownBridge
+namespace SerializeReferenceDropdownBridge.Bridge
 {
     [InitializeOnLoad]
     public static class SrdBridgeServer

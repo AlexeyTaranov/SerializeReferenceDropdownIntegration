@@ -1,95 +1,135 @@
 # Serialize Reference Dropdown Integration for Rider
 
-Rider plugin for Unity projects that use SerializeReference-heavy workflows.
+Rider plugin for Unity projects that use `SerializeReference`.
 
-The plugin helps Rider understand where serialized managed-reference types are used in Unity YAML assets, and adds safer rename-time helpers for keeping Unity assets in sync with C# refactorings.
+It shows where serialized managed-reference types are used in Unity assets, helps keep YAML references in sync during Rider rename refactorings, and can open referenced assets in Unity through a small Unity bridge package.
 
-Unity bridge package: [`com.alexeytaranov.serializereferencedropdown.riderintegration`](unity/com.alexeytaranov.serializereferencedropdown.riderintegration)
+![Serialize Reference Dropdown Integration](https://github.com/user-attachments/assets/e26e63d6-ef0b-433d-a4e1-e3c8077411d8)
 
 ## Features
 
-- Shows SerializeReference usage counts above supported C# classes through Rider Code Vision.
-- Opens a compact asset usage preview when clicking the usage count.
-- Selects and pings referenced Unity assets through the optional Unity bridge package.
-- Adds optional `MovedFrom` support during class rename.
-- Updates Unity YAML SerializeReference entries during class or namespace rename after explicit user opt-in.
-- Provides persistent settings under `Settings | Tools | Serialize Reference Dropdown`.
-- Adds Unity-side asmdef tools for renaming asmdefs and retargeting SerializeReference YAML assembly names.
+- [Usage Count](#usage-count): Code Vision counter for Unity YAML SerializeReference usages.
+- [Asset Usage Preview](#asset-usage-preview): click the counter to see referenced Unity assets.
+- [Rename YAML Updates](#rename-yaml-updates): opt-in class and namespace rename support for Unity YAML.
+- [MovedFrom Rename Helper](#movedfrom-rename-helper): optionally add Unity `MovedFrom` during class rename.
+- [Unity Bridge](#unity-bridge): open assets and connect Unity search UI from Rider.
+- [Asmdef Tools](#asmdef-tools): Unity inspector helpers for asmdef rename and SerializeReference `asm` retargeting.
+- [Settings](#settings): persistent Rider settings for plugin behavior.
 
 ## Install
 
-### Rider plugin
+### Rider Plugin
 
-1. Download the plugin archive from the release page.
+1. Download the Rider plugin archive from the release page.
 2. Open Rider `Settings | Plugins`.
 3. Click the gear icon and choose `Install Plugin from Disk...`.
 4. Restart Rider.
 
-### Unity bridge package
+### Unity Bridge Package
 
-Add the Unity package to the Unity project's `Packages/manifest.json`:
+Install the Unity package through Unity Package Manager with this Git URL:
+
+```text
+https://github.com/AlexeyTaranov/SerializeReferenceDropdownIntegration.git?path=/unity/com.alexeytaranov.serializereferencedropdown.riderintegration
+```
+
+Or add it to `Packages/manifest.json`:
 
 ```json
 {
   "dependencies": {
-    "com.alexeytaranov.serializereferencedropdown.riderintegration": "file:/absolute/path/to/unity/com.alexeytaranov.serializereferencedropdown.riderintegration"
+    "com.alexeytaranov.serializereferencedropdown.riderintegration": "https://github.com/AlexeyTaranov/SerializeReferenceDropdownIntegration.git?path=/unity/com.alexeytaranov.serializereferencedropdown.riderintegration"
   }
 }
 ```
 
-The bridge is required only for Rider-to-Unity actions, such as opening an asset from the usage preview or opening a SerializeReference search UI in Unity.
+The bridge starts automatically when Unity loads the package.
 
 ## Usage Count
 
-1. Open a Unity C# type that can appear in SerializeReference YAML.
-2. Click the `SRD` Code Vision entry.
-3. Refresh the usage database if Rider asks for it.
-4. Click the usage count to preview Unity asset files.
-5. Click an asset row to select and ping it in Unity.
+The plugin adds an `SRD` Code Vision entry above supported Unity C# classes. It counts matching `SerializeReference` entries in Unity YAML assets.
 
-If the usage database has not been built yet, Rider will show that Unity files have not been analyzed instead of hiding the usage count as `0`.
+![Usage Count](https://github.com/user-attachments/assets/e60d8c04-5dc9-4d14-b847-d8157b939d45)
 
-## Rename Support
+If the usage database has not been built yet, Rider shows that Unity files have not been analyzed instead of silently hiding the counter as `0`.
 
-During class or namespace rename, the plugin can scan Unity YAML assets and show how many SerializeReference entries can be updated.
+## Asset Usage Preview
 
-The rename page is intentionally opt-in:
+Click the `SRD` usage count to open a compact asset list. Rows show asset type icons, asset names, and project-relative folders.
 
+When Unity is running with the bridge package installed, clicking an asset row sends `OpenAsset` to Unity and selects/pings that asset.
+
+## Rename YAML Updates
+
+During class or namespace rename, the plugin can scan Unity YAML assets and update matching `SerializeReference` type data.
+
+The flow is intentionally explicit:
+
+- `Scan / Rescan` checks affected Unity asset files.
 - `No changes` keeps Unity YAML untouched.
-- `Write YAML changes to disk` saves the scanned Unity YAML changes after the refactoring finishes.
-- The write option is disabled until scanning finds affected files.
+- `Write YAML changes to disk` applies scanned YAML changes after the refactoring finishes.
+- The write option stays unavailable until affected files are found.
 
-Use VCS before applying YAML edits. Rider undo for saved Unity YAML files is not guaranteed yet, so Git or another VCS is the recommended rollback path.
+![Rename YAML Updates](https://github.com/user-attachments/assets/3da99091-0787-4b70-ae32-42140a0f469e)
+
+Use VCS before applying YAML edits. Rider undo for saved Unity YAML files is not guaranteed yet.
+
+## MovedFrom Rename Helper
+
+During class rename, the plugin can add `UnityEngine.Scripting.APIUpdating.MovedFromAttribute`.
+
+![MovedFrom Rename Helper](https://github.com/user-attachments/assets/aae2dd53-977a-4138-9f4a-ca80e02ce6f1)
+
+The behavior can be configured as ask, always add, or never add.
+
+## Unity Bridge
+
+The Unity bridge package receives newline-terminated JSON commands from Rider through the `SerializeReferenceDropdownIntegration` named pipe.
+
+Supported commands:
+
+- `OpenAsset`: selects and pings a Unity asset by project-relative path, for example `Assets/Foo.prefab`.
+- `ShowSearchTypeWindow`: resolves a type name and raises `SrdBridgeServer.SearchTypeWindowRequested` or `SearchTypeWindowRequestedByName`.
+
+Use `SerializeReferenceDropdownBridge.Bridge.SrdBridgeServer` to subscribe to bridge events or toggle the bridge. The bridge is enabled by default. If another Unity package has its own preferences UI, it can call `SrdBridgeServer.SetEnabled(false)` and `SrdBridgeServer.SetEnabled(true)`.
+
+## Asmdef Tools
+
+The Unity package adds `Serialize Reference Dropdown Tools` to the inspector for `.asmdef` assets.
+
+Available actions:
+
+- Rename an asmdef and update asmdef/asmref references.
+- Rename the `.asmdef` asset file.
+- Rewrite matching Unity YAML `SerializeReference` `asm` values.
+- Move SerializeReference YAML entries from another assembly name, such as `Assembly-CSharp`, to the selected asmdef.
+
+These tools live in Unity because asmdef assets and imports are owned by Unity.
 
 ## Settings
 
-Open `Settings | Tools | Serialize Reference Dropdown` to configure:
+Open `Settings | Tools | Serialize Reference Dropdown`.
 
-- whether the Unity asset rename page is shown,
-- whether modified Unity assets are scanned automatically,
+Settings include:
+
+- show or hide the Unity asset rename page,
+- scan modified Unity assets automatically,
 - default YAML apply behavior,
-- warning behavior before writing Unity YAML,
-- `MovedFrom` behavior on class rename,
+- warning before writing Unity YAML,
+- `MovedFrom` behavior,
+- show or hide `SRD` Code Vision,
+- hide `0 usages` only after Unity files were analyzed,
+- auto-refresh the usage database,
+- usage-count click behavior,
 - Unity focus switching after bridge commands,
 - missing Unity bridge package warnings.
-
-## Unity Asmdef Tools
-
-The Unity package adds inspector tools for `.asmdef` assets:
-
-- rename the asmdef and update asmdef/asmref references,
-- update matching SerializeReference `asm` values in Unity YAML,
-- rename the `.asmdef` asset file,
-- move SerializeReference YAML entries from another assembly name to the selected asmdef.
-
-These tools live on the Unity side because asmdef assets and their import behavior are owned by Unity.
 
 ## Limitations
 
 - Unity YAML edits are saved to disk and should be reviewed in VCS.
 - Undo integration for saved Unity YAML files is still a research item.
-- Large Unity projects can take time to scan; use the refresh action deliberately.
-- Rider-to-Unity actions require Unity to be running with the bridge package installed and enabled.
+- Large Unity projects can take time to scan.
+- Rider-to-Unity actions require Unity to be running with the bridge package installed.
 
 ## Build
 
@@ -98,16 +138,7 @@ These tools live on the Unity side because asmdef assets and their import behavi
 dotnet test ReSharperPlugin.SerializeReferenceDropdownIntegration.sln
 ```
 
-The Rider plugin archive is copied to `output/` by `buildPlugin`.
-
-## Release Checklist
-
-- Update `CHANGELOG.md`.
-- Verify `PluginVersion` in `gradle.properties` and `<version>` in `src/rider/main/resources/META-INF/plugin.xml`.
-- Build the plugin archive with `./gradlew --no-configuration-cache buildPlugin`.
-- Install the archive from disk into Rider.
-- Smoke test usage count refresh, asset usage preview, class rename YAML opt-in, namespace rename YAML opt-in, settings persistence, and Unity bridge asset opening.
-- Confirm the Unity bridge package README and `package.json` match the release.
+The Rider plugin archive is copied to `output/`.
 
 ## License
 

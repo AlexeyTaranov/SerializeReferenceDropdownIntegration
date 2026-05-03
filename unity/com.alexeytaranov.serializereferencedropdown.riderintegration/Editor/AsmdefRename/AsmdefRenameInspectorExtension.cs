@@ -1,7 +1,7 @@
 using UnityEditor;
 using UnityEngine;
 
-namespace SerializeReferenceDropdownBridge
+namespace SerializeReferenceDropdownBridge.AsmdefRename
 {
     [InitializeOnLoad]
     internal static class AsmdefRenameInspectorExtension

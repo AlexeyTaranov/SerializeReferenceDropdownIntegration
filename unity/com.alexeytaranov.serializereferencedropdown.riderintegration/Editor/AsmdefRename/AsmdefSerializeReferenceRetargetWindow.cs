@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 
-namespace SerializeReferenceDropdownBridge
+namespace SerializeReferenceDropdownBridge.AsmdefRename
 {
     internal sealed class AsmdefSerializeReferenceRetargetWindow : EditorWindow
     {
