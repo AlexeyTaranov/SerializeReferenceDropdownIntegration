@@ -20,6 +20,18 @@ public class UnityAssetReferenceScanner
         IReadOnlyList<UnityReferenceTypeLineData> References,
         IReadOnlyList<UnityReferenceTypePrefabOverrideLineData> PrefabOverrides);
 
+    public readonly record struct ScanWarning(string Message, string FilePath = null);
+
+    public sealed class TypeReferencesScanResult
+    {
+        public IReadOnlyList<TypeReferenceData> References { get; init; } = [];
+        public IReadOnlyList<ScanWarning> Warnings { get; init; } = [];
+        public bool Cancelled { get; init; }
+        public bool AssetsFolderFound { get; init; } = true;
+        public int TotalFiles { get; init; }
+        public int ScannedFiles { get; init; }
+    }
+
     private readonly ISolution solution;
     private readonly PluginDiagnostics diagnostics;
 
@@ -113,6 +125,18 @@ public class UnityAssetReferenceScanner
     public async Task<IReadOnlyList<TypeReferenceData>> CollectTypeReferencesAsync(Func<UnityTypeData, bool> isTargetType,
         string diagnosticTarget, CancellationToken cancellationToken, Property<double> progress, Property<string> description)
     {
+        var result = await CollectTypeReferencesWithDiagnosticsAsync(isTargetType, diagnosticTarget, cancellationToken,
+            progress, description);
+        return result.Cancelled ? null : result.References;
+    }
+
+    public async Task<TypeReferencesScanResult> CollectTypeReferencesWithDiagnosticsAsync(
+        Func<UnityTypeData, bool> isTargetType,
+        string diagnosticTarget,
+        CancellationToken cancellationToken,
+        Property<double> progress = null,
+        Property<string> description = null)
+    {
         if (!TryGetUnityAssetFiles(out var allUnityFiles))
         {
             if (description != null)
@@ -125,7 +149,14 @@ public class UnityAssetReferenceScanner
                 progress.Value = 1.0;
             }
 
-            return [];
+            return new TypeReferencesScanResult
+            {
+                AssetsFolderFound = false,
+                Warnings =
+                [
+                    new ScanWarning("Unity Assets folder was not found. Open a Unity project or check the solution root.")
+                ]
+            };
         }
 
         if (description != null)
@@ -133,6 +164,7 @@ public class UnityAssetReferenceScanner
             description.Value = $"Scanning Unity assets for {diagnosticTarget}";
         }
         var targetTypeData = new List<TypeReferenceData>();
+        var warnings = new List<ScanWarning>();
         var allReferences = new List<UnityReferenceTypeLineData>();
         var allPrefabOverrides = new List<UnityReferenceTypePrefabOverrideLineData>();
 
@@ -140,7 +172,14 @@ public class UnityAssetReferenceScanner
         {
             if (cancellationToken.IsCancellationRequested)
             {
-                return null;
+                return new TypeReferencesScanResult
+                {
+                    References = targetTypeData,
+                    Warnings = warnings,
+                    Cancelled = true,
+                    TotalFiles = allUnityFiles.Count,
+                    ScannedFiles = i
+                };
             }
 
             var filePath = allUnityFiles[i];
@@ -157,7 +196,18 @@ public class UnityAssetReferenceScanner
             allReferences.Clear();
             allPrefabOverrides.Clear();
 
-            await UnityAssetReferenceParser.FillReferenceTypesBlocksAsync(filePath, allReferences, allPrefabOverrides);
+            try
+            {
+                await UnityAssetReferenceParser.FillReferenceTypesBlocksAsync(filePath, allReferences, allPrefabOverrides);
+            }
+            catch (Exception exception)
+            {
+                var relativeFilePath = ToProjectRelativePath(filePath);
+                warnings.Add(new ScanWarning($"Skipped '{relativeFilePath}' because it could not be read or parsed.",
+                    filePath));
+                diagnostics.Warn($"Skipped Unity asset while scanning SerializeReference data: {relativeFilePath}. {exception.Message}");
+                continue;
+            }
 
             var targetReferences = allReferences.Where(t => isTargetType(t.Type)).ToArray();
             var targetPrefabOverrides = allPrefabOverrides.Where(t => isTargetType(t.Type)).ToArray();
@@ -169,6 +219,7 @@ public class UnityAssetReferenceScanner
 
         if (allUnityFiles.Count == 0)
         {
+            warnings.Add(new ScanWarning("No Unity YAML asset files were found under the Assets folder."));
             if (description != null)
             {
                 description.Value = "No Unity assets found";
@@ -180,6 +231,23 @@ public class UnityAssetReferenceScanner
             }
         }
 
-        return targetTypeData;
+        return new TypeReferencesScanResult
+        {
+            References = targetTypeData,
+            Warnings = warnings,
+            TotalFiles = allUnityFiles.Count,
+            ScannedFiles = allUnityFiles.Count
+        };
+    }
+
+    private string ToProjectRelativePath(string filePath)
+    {
+        var solutionPath = solution.SolutionDirectory.FullPath;
+        if (!filePath.StartsWith(solutionPath, StringComparison.Ordinal))
+        {
+            return filePath;
+        }
+
+        return filePath.Substring(solutionPath.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
     }
 }

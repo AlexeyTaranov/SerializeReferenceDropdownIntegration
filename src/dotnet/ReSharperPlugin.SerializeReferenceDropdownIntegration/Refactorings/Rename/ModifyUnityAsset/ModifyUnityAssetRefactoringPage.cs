@@ -79,16 +79,22 @@ public class ModifyUnityAssetRefactoringPage : SingleBeRefactoringPage
 
             if (referencesCount.Value < 0)
             {
-                return "Scan has not run yet.";
+                return model.LastScanStatusText;
             }
 
             if (referencesCount.Value == 0)
             {
-                return "No Unity YAML files need to be changed.";
+                return model.LastScanStatusText;
             }
 
-            return $"{referencesCount.Value} reference {Pluralize(referencesCount.Value, "update", "updates")} across " +
-                   $"{model.PreviewFilesCount} asset {Pluralize(model.PreviewFilesCount, "file", "files")}.";
+            var result = $"{referencesCount.Value} reference {Pluralize(referencesCount.Value, "update", "updates")} across " +
+                         $"{model.PreviewFilesCount} asset {Pluralize(model.PreviewFilesCount, "file", "files")}.";
+            if (model.ScanWarnings.Count > 0)
+            {
+                result += $" {model.ScanWarnings.Count} asset {Pluralize(model.ScanWarnings.Count, "file was", "files were")} skipped.";
+            }
+
+            return result;
         }
 
         static string Pluralize(int count, string singular, string plural)

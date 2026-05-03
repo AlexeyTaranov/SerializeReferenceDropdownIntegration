@@ -22,12 +22,15 @@ public class ModifyUnityAssetModel
     private readonly PluginDiagnostics diagnostics;
     private readonly List<UnityAssetReferenceScanner.TypeReferenceData> targetTypeData = new();
     private readonly List<FilePreviewData> previewData = new();
+    private readonly List<UnityAssetReferenceScanner.ScanWarning> scanWarnings = new();
     private bool previewLoaded;
 
     public IReadOnlyList<UnityAssetReferenceChange> PreviewChanges =>
         previewData.SelectMany(data => data.Changes).ToArray();
 
     public int PreviewFilesCount => previewData.Count(data => data.Changes.Count > 0);
+    public IReadOnlyList<UnityAssetReferenceScanner.ScanWarning> ScanWarnings => scanWarnings;
+    public string LastScanStatusText { get; private set; } = "Scan has not run yet.";
     public bool ShouldApplyModifiedFiles { get; set; }
 
     private readonly record struct FilePreviewData(string FilePath, IReadOnlyList<UnityAssetReferenceChange> Changes);
@@ -92,14 +95,19 @@ public class ModifyUnityAssetModel
     {
         targetTypeData.Clear();
         previewData.Clear();
+        scanWarnings.Clear();
         previewLoaded = false;
-        var collectedTypeData = await scanner.CollectTypeReferencesAsync(isTargetType, diagnosticTarget, cancellationToken);
-        if (collectedTypeData == null)
+        LastScanStatusText = "Scanning Unity assets...";
+        var scanResult = await scanner.CollectTypeReferencesWithDiagnosticsAsync(isTargetType, diagnosticTarget,
+            cancellationToken);
+        if (scanResult.Cancelled)
         {
+            LastScanStatusText = "Unity asset scan was cancelled.";
             return -1;
         }
 
-        targetTypeData.AddRange(collectedTypeData);
+        scanWarnings.AddRange(scanResult.Warnings);
+        targetTypeData.AddRange(scanResult.References);
 
         foreach (var data in targetTypeData)
         {
@@ -116,6 +124,7 @@ public class ModifyUnityAssetModel
         }
 
         previewLoaded = true;
+        LastScanStatusText = BuildScanStatusText(scanResult);
         return PreviewChanges.Count;
     }
 
@@ -171,4 +180,35 @@ public class ModifyUnityAssetModel
         diagnostics.Error($"Failed to modify Unity assets for '{diagnosticTarget}'.", exception);
     }
 
+    private string BuildScanStatusText(UnityAssetReferenceScanner.TypeReferencesScanResult scanResult)
+    {
+        if (!scanResult.AssetsFolderFound)
+        {
+            return "Unity Assets folder was not found. Open a Unity project or check the solution root.";
+        }
+
+        if (scanResult.TotalFiles == 0)
+        {
+            return "No Unity YAML asset files were found under the Assets folder.";
+        }
+
+        if (scanWarnings.Count > 0 && previewData.Count == 0)
+        {
+            return $"No Unity YAML files need to be changed. {scanWarnings.Count} asset {Pluralize(scanWarnings.Count, "file was", "files were")} skipped.";
+        }
+
+        if (scanWarnings.Count > 0)
+        {
+            return $"{scanWarnings.Count} asset {Pluralize(scanWarnings.Count, "file was", "files were")} skipped during scan.";
+        }
+
+        return previewData.Count == 0
+            ? "No Unity YAML files need to be changed."
+            : string.Empty;
+    }
+
+    private static string Pluralize(int count, string singular, string plural)
+    {
+        return count == 1 ? singular : plural;
+    }
 }
