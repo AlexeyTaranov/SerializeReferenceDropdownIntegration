@@ -31,6 +31,11 @@ namespace SerializeReferenceDropdownBridge.Editor
             EditorApplication.update += ExecuteMainThreadActions;
             AssemblyReloadEvents.beforeAssemblyReload += Stop;
             EditorApplication.quitting += Stop;
+
+            if (isEnabled)
+            {
+                StartListener();
+            }
         }
         
         private static void Stop()
