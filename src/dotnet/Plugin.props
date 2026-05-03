@@ -6,12 +6,13 @@
     <SdkVersion>2025.2.0</SdkVersion>
 
     <Title>SerializeReferenceDropdownIntegration (SRD)</Title>
-    <Description>Integration for unity package: SerializeReferenceDropdown</Description>
+    <Description>Rider integration for Unity SerializeReference usage counts, YAML rename updates, and Unity asset navigation.</Description>
 
     <Authors>Alexey Taranov</Authors>
     <Copyright>Copyright $([System.DateTime]::Now.Year) Maintainers of SerializeReferenceDropdownIntegration</Copyright>
-    <PackageTags>Rider pluhin</PackageTags>
-    <!-- TODO - icon, url something else....-->
+    <PackageTags>Rider plugin Unity SerializeReference</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/AlexeyTaranov/SerializeReferenceDropdownIntegration</PackageProjectUrl>
   </PropertyGroup>
 
     <ItemGroup>
