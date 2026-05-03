@@ -8,12 +8,11 @@ It shows where serialized managed-reference types are used in Unity assets, help
 
 ## Features
 
-- [Usage Count](#usage-count): Code Vision counter for Unity YAML SerializeReference usages.
-- [Asset Usage Preview](#asset-usage-preview): click the counter to see referenced Unity assets.
+- [Usage Count And Asset Preview](#usage-count-and-asset-preview): Code Vision counter and referenced Unity asset list.
 - [Rename YAML Updates](#rename-yaml-updates): opt-in class and namespace rename support for Unity YAML.
 - [MovedFrom Rename Helper](#movedfrom-rename-helper): optionally add Unity `MovedFrom` during class rename.
-- [Unity Bridge](#unity-bridge): open assets and connect Unity search UI from Rider.
-- [Asmdef Tools](#asmdef-tools): Unity inspector helpers for asmdef rename and SerializeReference `asm` retargeting.
+- [[Unity Package] Unity Bridge](#unity-package-unity-bridge): open assets and connect Unity search UI from Rider.
+- [[Unity Package] Asmdef Tools](#unity-package-asmdef-tools): Unity inspector helpers for asmdef rename and SerializeReference `asm` retargeting.
 - [Settings](#settings): persistent Rider settings for plugin behavior.
 
 ## Install
@@ -45,15 +44,13 @@ Or add it to `Packages/manifest.json`:
 
 The bridge starts automatically when Unity loads the package.
 
-## Usage Count
+## Usage Count And Asset Preview
 
 The plugin adds an `SRD` Code Vision entry above supported Unity C# classes. It counts matching `SerializeReference` entries in Unity YAML assets.
 
 ![Usage Count](https://github.com/user-attachments/assets/e60d8c04-5dc9-4d14-b847-d8157b939d45)
 
 If the usage database has not been built yet, Rider shows that Unity files have not been analyzed instead of silently hiding the counter as `0`.
-
-## Asset Usage Preview
 
 Click the `SRD` usage count to open a compact asset list. Rows show asset type icons, asset names, and project-relative folders.
 
@@ -82,7 +79,7 @@ During class rename, the plugin can add `UnityEngine.Scripting.APIUpdating.Moved
 
 The behavior can be configured as ask, always add, or never add.
 
-## Unity Bridge
+## [Unity Package] Unity Bridge
 
 The Unity bridge package receives newline-terminated JSON commands from Rider through the `SerializeReferenceDropdownIntegration` named pipe.
 
@@ -93,7 +90,7 @@ Supported commands:
 
 Use `SerializeReferenceDropdownBridge.Bridge.SrdBridgeServer` to subscribe to bridge events or toggle the bridge. The bridge is enabled by default. If another Unity package has its own preferences UI, it can call `SrdBridgeServer.SetEnabled(false)` and `SrdBridgeServer.SetEnabled(true)`.
 
-## Asmdef Tools
+## [Unity Package] Asmdef Tools
 
 The Unity package adds `Serialize Reference Dropdown Tools` to the inspector for `.asmdef` assets.
 
