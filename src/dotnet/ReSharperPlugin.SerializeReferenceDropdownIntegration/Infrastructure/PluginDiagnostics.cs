@@ -1,6 +1,5 @@
 using System;
 using System.Diagnostics;
-using System.IO;
 using JetBrains.Application.Parts;
 using JetBrains.ProjectModel;
 
@@ -9,8 +8,6 @@ namespace ReSharperPlugin.SerializeReferenceDropdownIntegration.Infrastructure;
 [SolutionComponent(Instantiation.DemandAnyThreadSafe)]
 public class PluginDiagnostics
 {
-    public const string LogPath = "/tmp/srd-plugin-debug.log";
-
     private readonly string myPrefix;
 
     public PluginDiagnostics(ISolution solution)
@@ -18,6 +15,7 @@ public class PluginDiagnostics
         myPrefix = $"{Names.SRDShort}[{solution.Name}]";
     }
 
+    [Conditional("SRD_DEV")]
     public void Info(string message)
     {
         Write("INFO", message);
@@ -47,15 +45,6 @@ public class PluginDiagnostics
             default:
                 Trace.WriteLine(line);
                 break;
-        }
-
-        try
-        {
-            File.AppendAllText(LogPath, line + Environment.NewLine);
-        }
-        catch
-        {
-            // Diagnostics must never break Rider startup or refactoring flows.
         }
     }
 }

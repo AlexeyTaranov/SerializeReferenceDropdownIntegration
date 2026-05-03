@@ -16,7 +16,6 @@ public class OpenSerializeReferenceDropdownSettingsAction : IExecutableAction
     public OpenSerializeReferenceDropdownSettingsAction(OptionsManager optionsManager)
     {
         myOptionsManager = optionsManager;
-        SerializeReferenceDropdownOptions.Log("Open settings action created.");
     }
 
     public bool Update(IDataContext context, ActionPresentation presentation, DelegateUpdate nextUpdate)
@@ -29,9 +28,7 @@ public class OpenSerializeReferenceDropdownSettingsAction : IExecutableAction
     {
         try
         {
-            SerializeReferenceDropdownOptions.Log("Open settings action executed. Calling BeginShowOptions.");
             myOptionsManager.BeginShowOptions(SerializeReferenceDropdownOptions.Id);
-            SerializeReferenceDropdownOptions.Log("Open settings action BeginShowOptions returned without exception.");
         }
         catch (Exception exception)
         {

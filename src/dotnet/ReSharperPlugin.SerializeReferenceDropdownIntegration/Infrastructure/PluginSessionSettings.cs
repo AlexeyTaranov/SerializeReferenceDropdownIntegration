@@ -74,7 +74,6 @@ public class PluginSessionSettings
     public PluginSessionSettings(ISettingsStore settingsStore)
     {
         this.settingsStore = settingsStore;
-        SerializeReferenceDropdownOptions.Log("PluginSessionSettings created. Solution-level components are available.");
     }
 
     public bool? NeedOpenSearchTool { get; set; }
