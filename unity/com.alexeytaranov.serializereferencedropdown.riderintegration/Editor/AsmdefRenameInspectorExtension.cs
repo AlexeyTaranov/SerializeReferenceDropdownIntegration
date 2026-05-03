@@ -1,0 +1,42 @@
+using UnityEditor;
+using UnityEngine;
+
+namespace SerializeReferenceDropdownBridge
+{
+    [InitializeOnLoad]
+    internal static class AsmdefRenameInspectorExtension
+    {
+        static AsmdefRenameInspectorExtension()
+        {
+            UnityEditor.Editor.finishedDefaultHeaderGUI -= DrawAsmdefRenameHeader;
+            UnityEditor.Editor.finishedDefaultHeaderGUI += DrawAsmdefRenameHeader;
+        }
+
+        private static void DrawAsmdefRenameHeader(UnityEditor.Editor editor)
+        {
+            if (editor == null || editor.target == null)
+            {
+                return;
+            }
+
+            var assetPath = AssetDatabase.GetAssetPath(editor.target);
+            if (!AsmdefRenameService.IsAsmdefAssetPath(assetPath))
+            {
+                return;
+            }
+
+            EditorGUILayout.Space();
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+            EditorGUILayout.LabelField("Serialize Reference Dropdown", EditorStyles.boldLabel);
+            if (GUILayout.Button("Rename assembly definition and references"))
+            {
+                AsmdefRenameWindow.Open(new AsmdefRenameRequest
+                {
+                    asmdefPath = assetPath
+                });
+            }
+
+            EditorGUILayout.EndVertical();
+        }
+    }
+}

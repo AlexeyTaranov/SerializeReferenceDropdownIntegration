@@ -1,6 +1,6 @@
 using System;
 
-namespace SerializeReferenceDropdownBridge.Editor
+namespace SerializeReferenceDropdownBridge
 {
     [Serializable]
     internal sealed class SrdBridgeResponse

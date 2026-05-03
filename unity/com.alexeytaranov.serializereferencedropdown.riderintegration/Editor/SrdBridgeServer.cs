@@ -8,7 +8,7 @@ using System.Diagnostics;
 using UnityEditor;
 using UnityEngine;
 
-namespace SerializeReferenceDropdownBridge.Editor
+namespace SerializeReferenceDropdownBridge
 {
     [InitializeOnLoad]
     public static class SrdBridgeServer
@@ -16,6 +16,7 @@ namespace SerializeReferenceDropdownBridge.Editor
         private const string PipeName = "SerializeReferenceDropdownIntegration";
         private const string OpenAssetCommand = "OpenAsset";
         private const string ShowSearchTypeWindowCommand = "ShowSearchTypeWindow";
+        private const string OpenAsmdefRenameWindowCommand = "OpenAsmdefRenameWindow";
         private const int CommandExecutionTimeoutMs = 5000;
 
         private static readonly ConcurrentQueue<PendingCommand> MainThreadActions = new ConcurrentQueue<PendingCommand>();
@@ -252,6 +253,9 @@ namespace SerializeReferenceDropdownBridge.Editor
                 case ShowSearchTypeWindowCommand:
                     Log.DevLog($"Executing {ShowSearchTypeWindowCommand}: {command.payload}");
                     return ShowSearchTypeWindow(command.payload);
+                case OpenAsmdefRenameWindowCommand:
+                    Log.DevLog($"Executing {OpenAsmdefRenameWindowCommand}: {command.payload}");
+                    return OpenAsmdefRenameWindow(command.payload);
                 default:
                     Log.Error($"Received unknown command: {command.command}");
                     return SrdBridgeResponse.Create("UnknownCommand", $"Unity bridge received unknown command: {command.command}");
@@ -304,6 +308,13 @@ namespace SerializeReferenceDropdownBridge.Editor
             }
 
             return null;
+        }
+
+        private static SrdBridgeResponse OpenAsmdefRenameWindow(string payload)
+        {
+            var request = AsmdefRenameRequest.FromPayload(payload);
+            AsmdefRenameWindow.Open(request);
+            return SrdBridgeResponse.Create("Ok", "Assembly definition rename window was opened.");
         }
 
         private static SrdBridgeResponse OpenAsset(string assetPath)

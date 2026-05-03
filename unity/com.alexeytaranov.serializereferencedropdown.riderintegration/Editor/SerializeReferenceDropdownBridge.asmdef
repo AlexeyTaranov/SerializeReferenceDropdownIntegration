@@ -1,6 +1,6 @@
 {
   "name": "SerializeReferenceDropdownBridge.Editor",
-  "rootNamespace": "SerializeReferenceDropdownBridge.Editor",
+  "rootNamespace": "SerializeReferenceDropdownBridge",
   "references": [],
   "includePlatforms": [
     "Editor"

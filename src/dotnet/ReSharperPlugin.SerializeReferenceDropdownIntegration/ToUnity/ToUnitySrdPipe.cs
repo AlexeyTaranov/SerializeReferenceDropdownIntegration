@@ -21,6 +21,7 @@ public class ToUnitySrdPipe
     private const string ReplyPipePrefix = "srd.";
     private const string ShowSearchTypeWindowCommand = "ShowSearchTypeWindow";
     private const string OpenAssetCommand = "OpenAsset";
+    private const string OpenAsmdefRenameWindowCommand = "OpenAsmdefRenameWindow";
 
     private readonly PluginSessionSettings sessionSettings;
     private readonly PluginDiagnostics diagnostics;
@@ -80,6 +81,17 @@ public class ToUnitySrdPipe
 
         Task.Run(() => SendCommandToPipeAndSwitchFocus(OpenAssetCommand, relativeAssetPath,
             $"asset '{relativeAssetPath}'"));
+    }
+
+    public void OpenAsmdefRenameWindow(string asmdefAssetPath = null)
+    {
+        if (!CanSendUnityBridgeCommand())
+        {
+            return;
+        }
+
+        Task.Run(() => SendCommandToPipeAndSwitchFocus(OpenAsmdefRenameWindowCommand, asmdefAssetPath ?? string.Empty,
+            "asmdef rename window"));
     }
 
     private bool CanSendUnityBridgeCommand()

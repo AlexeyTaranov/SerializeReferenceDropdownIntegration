@@ -38,7 +38,7 @@ After changing the preference in UI, save the preferences and pass the value to 
 
 ```csharp
 using SerializeReferenceDropdown.Editor.Preferences;
-using SerializeReferenceDropdownBridge.Editor;
+using SerializeReferenceDropdownBridge;
 
 var preferences = SerializeReferenceToolsUserPreferences.GetOrLoadSettings();
 preferences.EnableRiderIntegration = true;
@@ -53,7 +53,7 @@ The bridge starts enabled by default. Call `SrdBridgeServer.SetEnabled(false)` d
 The simplest integration is to subscribe from another editor script and open your existing search window there.
 
 ```csharp
-using SerializeReferenceDropdownBridge.Editor;
+using SerializeReferenceDropdownBridge;
 using System;
 using UnityEditor;
 
