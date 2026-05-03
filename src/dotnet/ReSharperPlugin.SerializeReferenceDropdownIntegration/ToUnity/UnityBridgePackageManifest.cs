@@ -4,7 +4,7 @@ namespace ReSharperPlugin.SerializeReferenceDropdownIntegration.ToUnity;
 
 public static class UnityBridgePackageManifest
 {
-    public const string PackageId = "com.alexeytaranov.serializereferencedropdown";
+    public const string PackageId = "com.alexeytaranov.serializereferencedropdown.riderintegration";
 
     public static bool ManifestContainsBridgePackage(string manifestText)
     {

@@ -100,19 +100,25 @@ public class ToUnitySrdPipe
 
     private void SendCommandToPipeAndSwitchFocus(string command, string diagnosticTarget)
     {
-        SendCommandToPipe(command, diagnosticTarget);
-        windowFocusSwitch.SwitchToUnityApplication();
+        if (SendCommandToPipe(command, diagnosticTarget))
+        {
+            windowFocusSwitch.SwitchToUnityApplication();
+        }
     }
 
-    private void SendCommandToPipe(string command, string diagnosticTarget)
+    private bool SendCommandToPipe(string command, string diagnosticTarget)
     {
         try
         {
+            diagnostics.Info($"Connecting to Unity pipe '{PipeName}' for {diagnosticTarget}.");
             using var client = new NamedPipeClientStream(".", PipeName, PipeDirection.Out);
             client.Connect(ConnectTimeoutMs);
+            diagnostics.Info($"Connected to Unity pipe '{PipeName}' for {diagnosticTarget}.");
             var buffer = Encoding.UTF8.GetBytes(command);
             client.Write(buffer, 0, buffer.Length);
             client.Flush();
+            diagnostics.Info($"Sent {buffer.Length} bytes for {diagnosticTarget} to Unity pipe '{PipeName}' with command '{command}'.");
+            return true;
         }
         catch (Exception exception)
         {
@@ -120,6 +126,7 @@ public class ToUnitySrdPipe
                 exception);
             MessageBox.ShowError("Unable to contact the Unity SRD bridge. Make sure Unity is running and the SRD package is loaded.",
                 Names.SRDShort);
+            return false;
         }
     }
 

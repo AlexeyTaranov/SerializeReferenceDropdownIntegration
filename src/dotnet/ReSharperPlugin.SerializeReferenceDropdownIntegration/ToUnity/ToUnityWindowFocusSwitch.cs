@@ -3,6 +3,8 @@ using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
 using JetBrains.Application.Parts;
+using JetBrains.IDE.UI;
+using JetBrains.Lifetimes;
 using JetBrains.ProjectModel;
 using JetBrains.Util;
 using ReSharperPlugin.SerializeReferenceDropdownIntegration.Infrastructure;
@@ -16,11 +18,16 @@ public class ToUnityWindowFocusSwitch
 
     private readonly PluginSessionSettings sessionSettings;
     private readonly PluginDiagnostics diagnostics;
+    private readonly SwitchToUnityDialog switchToUnityDialog;
+    private bool switchDialogShown;
 
-    public ToUnityWindowFocusSwitch(PluginSessionSettings sessionSettings, PluginDiagnostics diagnostics)
+    public ToUnityWindowFocusSwitch(PluginSessionSettings sessionSettings, PluginDiagnostics diagnostics,
+        IDialogHost dialogHost, Lifetime lifetime)
     {
         this.sessionSettings = sessionSettings;
         this.diagnostics = diagnostics;
+        switchToUnityDialog = new SwitchToUnityDialog(dialogHost, lifetime, OnSwitchToUnitySelected,
+            OnDoNotSwitchToUnitySelected);
     }
 
     public void SwitchToUnityApplication()
@@ -31,11 +38,21 @@ public class ToUnityWindowFocusSwitch
             return;
         }
 
-        if (!ShouldSwitchToUnityApplication())
+        switch (sessionSettings.UnityWindowFocusSwitchSettings)
         {
-            return;
+            case UnityWindowFocusSwitchSettings.AlwaysSwitch:
+                TrySwitchToUnityApplication();
+                return;
+            case UnityWindowFocusSwitchSettings.NeverSwitch:
+                return;
+            default:
+                ShowSwitchToUnityDialog();
+                return;
         }
+    }
 
+    private void TrySwitchToUnityApplication()
+    {
         try
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
@@ -53,19 +70,32 @@ public class ToUnityWindowFocusSwitch
         }
     }
 
-    private bool ShouldSwitchToUnityApplication()
+    private void ShowSwitchToUnityDialog()
     {
-        switch (sessionSettings.UnityWindowFocusSwitchSettings)
+        if (switchDialogShown)
         {
-            case UnityWindowFocusSwitchSettings.AlwaysSwitch:
-                return true;
-            case UnityWindowFocusSwitchSettings.NeverSwitch:
-                return false;
-            default:
-                sessionSettings.NeedSwitchToUnityApp ??= MessageBox.ShowYesNoCancel(
-                    "Switch to Unity after sending commands in this session?",
-                    Names.SRDShort);
-                return sessionSettings.NeedSwitchToUnityApp == true;
+            return;
+        }
+
+        switchDialogShown = true;
+        switchToUnityDialog.Show(() => switchDialogShown = false);
+    }
+
+    private void OnSwitchToUnitySelected(bool rememberSettings)
+    {
+        if (rememberSettings)
+        {
+            sessionSettings.UnityWindowFocusSwitchSettings = UnityWindowFocusSwitchSettings.AlwaysSwitch;
+        }
+
+        TrySwitchToUnityApplication();
+    }
+
+    private void OnDoNotSwitchToUnitySelected(bool rememberSettings)
+    {
+        if (rememberSettings)
+        {
+            sessionSettings.UnityWindowFocusSwitchSettings = UnityWindowFocusSwitchSettings.NeverSwitch;
         }
     }
 

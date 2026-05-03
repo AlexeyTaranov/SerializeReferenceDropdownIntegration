@@ -13,7 +13,7 @@ public class UnityBridgePackageManifestDetectorTests
                                 {
                                   "dependencies": {
                                     "com.unity.textmeshpro": "3.0.6",
-                                    "com.alexeytaranov.serializereferencedropdown": "file:../Packages/SerializeReferenceDropdown"
+                                    "com.alexeytaranov.serializereferencedropdown.riderintegration": "file:../Packages/SerializeReferenceDropdown.RiderIntegration"
                                   }
                                 }
                                 """;

@@ -1,0 +1,10 @@
+{
+  "name": "com.alexeytaranov.serializereferencedropdown.riderintegration",
+  "version": "0.1.0",
+  "displayName": "Serialize Reference Dropdown Rider Integration",
+  "description": "Unity editor bridge for the Rider Serialize Reference Dropdown Integration plugin.",
+  "unity": "2021.3",
+  "author": {
+    "name": "Alexey Taranov"
+  }
+}
