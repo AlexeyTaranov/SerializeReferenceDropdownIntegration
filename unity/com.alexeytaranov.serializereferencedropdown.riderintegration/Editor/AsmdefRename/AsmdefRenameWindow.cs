@@ -41,6 +41,9 @@ namespace SerializeReferenceDropdownBridge
         private void OnGUI()
         {
             EditorGUILayout.LabelField("Modify Assembly Definition", EditorStyles.boldLabel);
+            EditorGUILayout.HelpBox(
+                "This tool renames the asmdef, updates asmdef/asmref references, and replaces matching SerializeReference asm values in Unity YAML assets.",
+                MessageType.Info);
             EditorGUILayout.Space();
 
             using (new EditorGUI.DisabledScope(true))
@@ -69,7 +72,7 @@ namespace SerializeReferenceDropdownBridge
             using (new EditorGUI.DisabledScope(scanResult == null || scanResult.ChangesCount == 0))
             {
                 selectedAction = GUILayout.SelectionGrid(selectedAction,
-                    new[] { "No changes", "Write asmdef changes to disk" }, 1);
+                    new[] { "No changes", "Write asmdef and YAML changes to disk" }, 1);
             }
 
             EditorGUILayout.Space();
@@ -88,8 +91,9 @@ namespace SerializeReferenceDropdownBridge
             {
                 scanResult = AsmdefRenameService.Scan(asmdefAssetPath, oldName, newName);
                 statusText = scanResult.ChangesCount == 0
-                    ? "No asmdef or asmref files need to be changed."
-                    : $"{scanResult.ChangesCount} change(s) across {scanResult.FileChanges.Count} file(s)." +
+                    ? "No asmdef, asmref, or SerializeReference YAML files need to be changed."
+                    : $"{scanResult.ChangesCount} change(s): {scanResult.FileChanges.Count} asmdef/asmref file(s), " +
+                      $"{scanResult.SerializeReferenceYamlChanges.Count} YAML asset file(s)." +
                       (scanResult.WillRenameAssetFile ? " The target .asmdef file will also be renamed." : string.Empty);
                 selectedAction = 0;
             }
@@ -106,8 +110,10 @@ namespace SerializeReferenceDropdownBridge
         {
             try
             {
-                AsmdefRenameService.Apply(scanResult);
-                statusText = "Assembly definition rename was applied.";
+                var result = AsmdefRenameService.Apply(scanResult);
+                statusText = $"Applied {result.WrittenReplacementsCount} asmdef/asmref replacement(s) in {result.WrittenFilesCount} file(s), " +
+                             $"{result.WrittenYamlReplacementsCount} SerializeReference asm replacement(s) in {result.WrittenYamlFilesCount} YAML file(s)." +
+                             (result.AssetFileRenamed ? " The target .asmdef asset was renamed." : string.Empty);
                 oldName = newName;
                 scanResult = null;
                 selectedAction = 0;

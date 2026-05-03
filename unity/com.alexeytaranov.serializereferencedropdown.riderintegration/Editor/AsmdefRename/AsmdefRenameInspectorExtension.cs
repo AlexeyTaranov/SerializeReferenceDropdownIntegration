@@ -27,13 +27,18 @@ namespace SerializeReferenceDropdownBridge
 
             EditorGUILayout.Space();
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-            EditorGUILayout.LabelField("Serialize Reference Dropdown", EditorStyles.boldLabel);
-            if (GUILayout.Button("Rename assembly definition and references"))
+            EditorGUILayout.LabelField("Serialize Reference Dropdown Tools", EditorStyles.boldLabel);
+            if (GUILayout.Button("Rename asmdef and SerializeReference YAML"))
             {
                 AsmdefRenameWindow.Open(new AsmdefRenameRequest
                 {
                     asmdefPath = assetPath
                 });
+            }
+
+            if (GUILayout.Button("Move SerializeReference YAML to this asmdef"))
+            {
+                AsmdefSerializeReferenceRetargetWindow.Open(assetPath);
             }
 
             EditorGUILayout.EndVertical();

@@ -13,6 +13,7 @@ namespace SerializeReferenceDropdownBridge
         public readonly string OldName;
         public readonly string NewName;
         public readonly List<AsmdefRenameFileChange> FileChanges = new List<AsmdefRenameFileChange>();
+        public readonly List<AsmdefRenameFileChange> SerializeReferenceYamlChanges = new List<AsmdefRenameFileChange>();
         public bool WillRenameAssetFile;
 
         public AsmdefRenameScanResult(string targetAssetPath, string oldName, string newName)
@@ -28,6 +29,11 @@ namespace SerializeReferenceDropdownBridge
             {
                 var count = WillRenameAssetFile ? 1 : 0;
                 foreach (var change in FileChanges)
+                {
+                    count += change.ReplacementsCount;
+                }
+
+                foreach (var change in SerializeReferenceYamlChanges)
                 {
                     count += change.ReplacementsCount;
                 }
@@ -49,6 +55,15 @@ namespace SerializeReferenceDropdownBridge
             NewText = newText;
             ReplacementsCount = replacementsCount;
         }
+    }
+
+    internal sealed class AsmdefRenameApplyResult
+    {
+        public int WrittenFilesCount;
+        public int WrittenReplacementsCount;
+        public int WrittenYamlFilesCount;
+        public int WrittenYamlReplacementsCount;
+        public bool AssetFileRenamed;
     }
 
     internal static class AsmdefRenameService
@@ -120,7 +135,7 @@ namespace SerializeReferenceDropdownBridge
 
             var result = new AsmdefRenameScanResult(targetAsmdefAssetPath, oldName, newName)
             {
-                WillRenameAssetFile = ShouldRenameAssetFile(targetAsmdefAssetPath, oldName)
+                WillRenameAssetFile = ShouldRenameAssetFile(targetAsmdefAssetPath, newName)
             };
 
             foreach (var assetPath in EnumerateAsmdefAndAsmrefAssetPaths())
@@ -134,31 +149,61 @@ namespace SerializeReferenceDropdownBridge
                 }
             }
 
+            result.SerializeReferenceYamlChanges.AddRange(ScanSerializeReferenceYamlAssemblyChanges(oldName, newName));
             return result;
         }
 
-        public static void Apply(AsmdefRenameScanResult result)
+        public static IReadOnlyList<AsmdefRenameFileChange> ScanSerializeReferenceYamlAssemblyChanges(
+            string oldAssemblyName, string newAssemblyName)
         {
-            if (result == null)
+            if (string.IsNullOrWhiteSpace(oldAssemblyName))
             {
-                throw new ArgumentNullException(nameof(result));
+                throw new ArgumentException("Old SerializeReference assembly name is empty.", nameof(oldAssemblyName));
             }
 
+            if (string.IsNullOrWhiteSpace(newAssemblyName))
+            {
+                throw new ArgumentException("New SerializeReference assembly name is empty.", nameof(newAssemblyName));
+            }
+
+            if (string.Equals(oldAssemblyName, newAssemblyName, StringComparison.Ordinal))
+            {
+                return Array.Empty<AsmdefRenameFileChange>();
+            }
+
+            var changes = new List<AsmdefRenameFileChange>();
+            foreach (var assetPath in EnumerateUnityYamlAssetPaths())
+            {
+                var absolutePath = ToAbsoluteProjectPath(assetPath);
+                var originalText = File.ReadAllText(absolutePath);
+                var updatedText = ReplaceSerializeReferenceAssemblyLines(originalText, oldAssemblyName, newAssemblyName,
+                    out var replacementsCount);
+                if (replacementsCount > 0)
+                {
+                    changes.Add(new AsmdefRenameFileChange(assetPath, updatedText, replacementsCount));
+                }
+            }
+
+            return changes;
+        }
+
+        public static AsmdefRenameApplyResult ApplySerializeReferenceYamlAssemblyChanges(
+            IReadOnlyList<AsmdefRenameFileChange> changes)
+        {
+            if (changes == null)
+            {
+                throw new ArgumentNullException(nameof(changes));
+            }
+
+            var result = new AsmdefRenameApplyResult();
             AssetDatabase.StartAssetEditing();
             try
             {
-                foreach (var change in result.FileChanges)
+                foreach (var change in changes)
                 {
-                    File.WriteAllText(ToAbsoluteProjectPath(change.AssetPath), change.NewText);
-                }
-
-                if (result.WillRenameAssetFile)
-                {
-                    var renameError = AssetDatabase.RenameAsset(result.TargetAssetPath, result.NewName);
-                    if (!string.IsNullOrEmpty(renameError))
-                    {
-                        Log.DevWarning($"Failed to rename asmdef asset file '{result.TargetAssetPath}': {renameError}");
-                    }
+                    WriteAndImport(change);
+                    result.WrittenYamlFilesCount++;
+                    result.WrittenYamlReplacementsCount += change.ReplacementsCount;
                 }
             }
             finally
@@ -166,6 +211,53 @@ namespace SerializeReferenceDropdownBridge
                 AssetDatabase.StopAssetEditing();
                 AssetDatabase.Refresh();
             }
+
+            return result;
+        }
+
+        public static AsmdefRenameApplyResult Apply(AsmdefRenameScanResult result)
+        {
+            if (result == null)
+            {
+                throw new ArgumentNullException(nameof(result));
+            }
+
+            var applyResult = new AsmdefRenameApplyResult();
+            AssetDatabase.StartAssetEditing();
+            try
+            {
+                foreach (var change in result.FileChanges)
+                {
+                    WriteAndImport(change);
+                    applyResult.WrittenFilesCount++;
+                    applyResult.WrittenReplacementsCount += change.ReplacementsCount;
+                }
+
+                foreach (var change in result.SerializeReferenceYamlChanges)
+                {
+                    WriteAndImport(change);
+                    applyResult.WrittenYamlFilesCount++;
+                    applyResult.WrittenYamlReplacementsCount += change.ReplacementsCount;
+                }
+
+                if (result.WillRenameAssetFile)
+                {
+                    var renameError = AssetDatabase.RenameAsset(result.TargetAssetPath, result.NewName);
+                    if (!string.IsNullOrEmpty(renameError))
+                    {
+                        throw new IOException($"Failed to rename asmdef asset file '{result.TargetAssetPath}': {renameError}");
+                    }
+
+                    applyResult.AssetFileRenamed = true;
+                }
+            }
+            finally
+            {
+                AssetDatabase.StopAssetEditing();
+                AssetDatabase.Refresh();
+            }
+
+            return applyResult;
         }
 
         private static IEnumerable<string> EnumerateAsmdefAndAsmrefAssetPaths()
@@ -190,9 +282,47 @@ namespace SerializeReferenceDropdownBridge
             }
         }
 
-        private static bool ShouldRenameAssetFile(string targetAsmdefAssetPath, string oldName)
+        private static IEnumerable<string> EnumerateUnityYamlAssetPaths()
         {
-            return string.Equals(Path.GetFileNameWithoutExtension(targetAsmdefAssetPath), oldName,
+            foreach (var root in new[] { "Assets" })
+            {
+                var absoluteRoot = ToAbsoluteProjectPath(root);
+                if (!Directory.Exists(absoluteRoot))
+                {
+                    continue;
+                }
+
+                foreach (var filePath in Directory.GetFiles(absoluteRoot, "*.*", SearchOption.AllDirectories))
+                {
+                    var extension = Path.GetExtension(filePath);
+                    if (IsUnityYamlExtension(extension))
+                    {
+                        yield return ToProjectRelativeAssetPath(filePath);
+                    }
+                }
+            }
+        }
+
+        private static bool IsUnityYamlExtension(string extension)
+        {
+            switch (extension)
+            {
+                case ".asset":
+                case ".controller":
+                case ".mat":
+                case ".overrideController":
+                case ".playable":
+                case ".prefab":
+                case ".unity":
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        private static bool ShouldRenameAssetFile(string targetAsmdefAssetPath, string newName)
+        {
+            return !string.Equals(Path.GetFileNameWithoutExtension(targetAsmdefAssetPath), newName,
                 StringComparison.Ordinal);
         }
 
@@ -209,6 +339,33 @@ namespace SerializeReferenceDropdownBridge
             });
             replacementsCount = count;
             return result;
+        }
+
+        private static string ReplaceSerializeReferenceAssemblyLines(string text, string oldAssemblyName,
+            string newAssemblyName, out int replacementsCount)
+        {
+            var count = 0;
+            var pattern = @"(?<prefix>\basm:\s*)" + Regex.Escape(oldAssemblyName) + @"(?<suffix>[}\],\s\r\n])";
+            var result = Regex.Replace(text, pattern, match =>
+            {
+                count++;
+                return match.Groups["prefix"].Value + newAssemblyName + match.Groups["suffix"].Value;
+            });
+            replacementsCount = count;
+            return result;
+        }
+
+        private static void WriteAndImport(AsmdefRenameFileChange change)
+        {
+            var absolutePath = ToAbsoluteProjectPath(change.AssetPath);
+            File.WriteAllText(absolutePath, change.NewText);
+            var writtenText = File.ReadAllText(absolutePath);
+            if (!string.Equals(writtenText, change.NewText, StringComparison.Ordinal))
+            {
+                throw new IOException($"Failed to verify written asset change: {change.AssetPath}");
+            }
+
+            AssetDatabase.ImportAsset(change.AssetPath, ImportAssetOptions.ForceUpdate);
         }
 
         private static string ToAbsoluteProjectPath(string assetPath)
