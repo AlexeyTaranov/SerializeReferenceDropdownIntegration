@@ -17,6 +17,7 @@
   <ItemGroup>
     <Compile Include="..\ReSharperPlugin.SerializeReferenceDropdownIntegration\Data\UnityTypeData.cs" Link="Production\Data\UnityTypeData.cs" />
     <Compile Include="..\ReSharperPlugin.SerializeReferenceDropdownIntegration\ClassUsage\UnityAssetUsagePreview.cs" Link="Production\ClassUsage\UnityAssetUsagePreview.cs" />
+    <Compile Include="..\ReSharperPlugin.SerializeReferenceDropdownIntegration\ToUnity\ToUnityBridgeProtocol.cs" Link="Production\ToUnity\ToUnityBridgeProtocol.cs" />
     <Compile Include="..\ReSharperPlugin.SerializeReferenceDropdownIntegration\ToUnity\UnityBridgePackageManifest.cs" Link="Production\ToUnity\UnityBridgePackageManifest.cs" />
     <Compile Include="..\ReSharperPlugin.SerializeReferenceDropdownIntegration\Unity\AssetsDatabase\UnityAssetReferenceParser.cs" Link="Production\Unity\AssetsDatabase\UnityAssetReferenceParser.cs" />
     <Compile Include="..\ReSharperPlugin.SerializeReferenceDropdownIntegration\Unity\AssetsDatabase\UnityAssetReferenceRewriter.cs" Link="Production\Unity\AssetsDatabase\UnityAssetReferenceRewriter.cs" />

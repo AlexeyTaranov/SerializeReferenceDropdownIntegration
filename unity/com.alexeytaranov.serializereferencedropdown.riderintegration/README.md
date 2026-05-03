@@ -19,6 +19,17 @@ Add the package to the Unity project's `Packages/manifest.json`:
 - `OpenAsset`: selects and pings a Unity asset by project-relative path, for example `Assets/Foo.prefab`.
 - `ShowSearchTypeWindow`: resolves the type name payload and raises `SrdBridgeServer.SearchTypeWindowRequested`.
 
+Commands are newline-terminated JSON messages sent through the `SerializeReferenceDropdownIntegration` named pipe.
+Rider includes a temporary `replyPipe` name in each command.
+After executing the command on the Unity main thread, the bridge opens that reply pipe and writes a newline-terminated JSON response.
+
+```json
+{"version":1,"command":"OpenAsset","payload":"Assets/Foo.prefab","replyPipe":"srd.abc123"}
+{"version":1,"status":"Ok","message":"Unity asset was selected: Assets/Foo.prefab"}
+```
+
+Known response statuses are `Ok`, `InvalidJson`, `EmptyCommand`, `UnknownCommand`, `AssetNotFound`, `TypeNotResolved`, `Timeout`, and `Error`.
+
 ## Enable Or Disable
 
 The bridge does not read preferences directly. The main SerializeReferenceDropdown editor package should call `SrdBridgeServer.SetEnabled(...)` when `SerializeReferenceToolsUserPreferences.EnableRiderIntegration` changes.

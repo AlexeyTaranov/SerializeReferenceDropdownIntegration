@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.IO.Pipes;
 using System.Text;
 using System.Threading.Tasks;
@@ -16,9 +17,10 @@ public class ToUnitySrdPipe
 {
     private const string PipeName = "SerializeReferenceDropdownIntegration";
     private const int ConnectTimeoutMs = 1500;
+    private const int ResponseTimeoutMs = 5000;
+    private const string ReplyPipePrefix = "srd.";
     private const string ShowSearchTypeWindowCommand = "ShowSearchTypeWindow";
     private const string OpenAssetCommand = "OpenAsset";
-    private const int ProtocolVersion = 1;
 
     private readonly PluginSessionSettings sessionSettings;
     private readonly PluginDiagnostics diagnostics;
@@ -54,8 +56,7 @@ public class ToUnitySrdPipe
             return;
         }
 
-        Task.Run(() => SendCommandToPipeAndSwitchFocus(BuildJsonCommand(ShowSearchTypeWindowCommand, typeName),
-            $"type '{typeName}'"));
+        Task.Run(() => SendCommandToPipeAndSwitchFocus(ShowSearchTypeWindowCommand, typeName, $"type '{typeName}'"));
         
         if (searchWindowHintShown == false)
         {
@@ -77,7 +78,7 @@ public class ToUnitySrdPipe
             return;
         }
 
-        Task.Run(() => SendCommandToPipeAndSwitchFocus(BuildJsonCommand(OpenAssetCommand, relativeAssetPath),
+        Task.Run(() => SendCommandToPipeAndSwitchFocus(OpenAssetCommand, relativeAssetPath,
             $"asset '{relativeAssetPath}'"));
     }
 
@@ -98,90 +99,74 @@ public class ToUnitySrdPipe
         return false;
     }
 
-    private void SendCommandToPipeAndSwitchFocus(string command, string diagnosticTarget)
+    private void SendCommandToPipeAndSwitchFocus(string commandName, string payload, string diagnosticTarget)
     {
-        if (SendCommandToPipe(command, diagnosticTarget))
+        var response = SendCommandToPipe(commandName, payload, diagnosticTarget);
+        if (response is { IsSuccess: true })
         {
             windowFocusSwitch.SwitchToUnityApplication();
         }
     }
 
-    private bool SendCommandToPipe(string command, string diagnosticTarget)
+    private ToUnityBridgeResponse SendCommandToPipe(string commandName, string payload, string diagnosticTarget)
     {
+        var replyPipeName = ReplyPipePrefix + Guid.NewGuid().ToString("N").Substring(0, 12);
+        var commandLine = ToUnityBridgeProtocol.BuildJsonCommandLine(commandName, payload, replyPipeName);
+
         try
         {
+            using var responseServer = new NamedPipeServerStream(replyPipeName, PipeDirection.In, 1,
+                PipeTransmissionMode.Byte, PipeOptions.None);
+
             diagnostics.Info($"Connecting to Unity pipe '{PipeName}' for {diagnosticTarget}.");
             using var client = new NamedPipeClientStream(".", PipeName, PipeDirection.Out);
             client.Connect(ConnectTimeoutMs);
             diagnostics.Info($"Connected to Unity pipe '{PipeName}' for {diagnosticTarget}.");
-            var buffer = Encoding.UTF8.GetBytes(command);
+            var buffer = Encoding.UTF8.GetBytes(commandLine);
             client.Write(buffer, 0, buffer.Length);
             client.Flush();
-            diagnostics.Info($"Sent {buffer.Length} bytes for {diagnosticTarget} to Unity pipe '{PipeName}' with command '{command}'.");
-            return true;
+            diagnostics.Info($"Sent {buffer.Length} bytes for {diagnosticTarget} to Unity pipe '{PipeName}' with command '{commandLine.TrimEnd()}'.");
+
+            var waitResponseTask = Task.Run(() => responseServer.WaitForConnection());
+            if (!waitResponseTask.Wait(ResponseTimeoutMs))
+            {
+                diagnostics.Warn($"Timed out waiting for Unity bridge response pipe '{replyPipeName}' for {diagnosticTarget}.");
+                return new ToUnityBridgeResponse(ToUnityBridgeResponseStatus.Timeout,
+                    "Timed out waiting for Unity bridge response.");
+            }
+
+            var responseLine = ReadResponseLine(responseServer);
+            var response = ToUnityBridgeProtocol.ParseResponse(responseLine);
+            diagnostics.Info($"Unity bridge response for {diagnosticTarget}: {response.Status}. {response.Message}");
+            if (!response.IsSuccess)
+            {
+                MessageBox.ShowError(response.Message, Names.SRDShort);
+            }
+
+            return response;
         }
         catch (Exception exception)
         {
-            diagnostics.Error($"Failed to send {diagnosticTarget} to Unity pipe '{PipeName}' with command '{command}'.",
+            diagnostics.Error($"Failed to send {diagnosticTarget} to Unity pipe '{PipeName}' with command '{commandLine.TrimEnd()}'.",
                 exception);
             MessageBox.ShowError("Unable to contact the Unity SRD bridge. Make sure Unity is running and the SRD package is loaded.",
                 Names.SRDShort);
-            return false;
+            return new ToUnityBridgeResponse(ToUnityBridgeResponseStatus.Error, exception.Message);
         }
     }
 
-    private static string BuildJsonCommand(string commandName, string payload)
+    private static string ReadResponseLine(Stream client)
     {
-        return $"{{\"version\":{ProtocolVersion},\"command\":\"{EscapeJsonString(commandName)}\",\"payload\":\"{EscapeJsonString(payload)}\"}}";
-    }
-
-    private static string EscapeJsonString(string value)
-    {
-        if (string.IsNullOrEmpty(value))
+        var builder = new StringBuilder();
+        while (true)
         {
-            return string.Empty;
-        }
-
-        var builder = new StringBuilder(value.Length + 8);
-        foreach (var character in value)
-        {
-            switch (character)
+            var read = client.ReadByte();
+            if (read < 0 || read == '\n')
             {
-                case '\\':
-                    builder.Append(@"\\");
-                    break;
-                case '"':
-                    builder.Append("\\\"");
-                    break;
-                case '\b':
-                    builder.Append(@"\b");
-                    break;
-                case '\f':
-                    builder.Append(@"\f");
-                    break;
-                case '\n':
-                    builder.Append(@"\n");
-                    break;
-                case '\r':
-                    builder.Append(@"\r");
-                    break;
-                case '\t':
-                    builder.Append(@"\t");
-                    break;
-                default:
-                    if (character < ' ')
-                    {
-                        builder.Append("\\u");
-                        builder.Append(((int)character).ToString("x4"));
-                    }
-                    else
-                    {
-                        builder.Append(character);
-                    }
-                    break;
+                return builder.ToString();
             }
-        }
 
-        return builder.ToString();
+            builder.Append((char)read);
+        }
     }
 }

@@ -8,5 +8,6 @@ namespace SerializeReferenceDropdownBridge.Editor
         public int version;
         public string command;
         public string payload;
+        public string replyPipe;
     }
 }

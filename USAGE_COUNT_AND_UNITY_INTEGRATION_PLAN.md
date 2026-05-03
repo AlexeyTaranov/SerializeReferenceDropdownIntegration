@@ -9,7 +9,8 @@ This plan tracks the next improvements for SerializeReference usage preview and 
 - The preview is read-only and shown in a `MessageBox`.
 - The preview can open the first listed asset in Unity through the JSON bridge.
 - Individual asset entries in the preview are not clickable yet.
-- `ToUnitySrdPipe` can send JSON type-search and asset-open commands to Unity through a named pipe.
+- `ToUnitySrdPipe` sends newline-framed JSON type-search and asset-open commands to Unity through a named pipe.
+- Unity bridge replies through a temporary Rider-hosted `replyPipe` after command execution on the Unity main thread.
 - `ToUnitySrdPipe` uses a connection timeout so Rider does not hang when Unity or the Unity bridge is unavailable.
 - `ToUnityWindowFocusSwitch` can focus Unity on macOS through `osascript` and on Windows through `user32.dll`.
 
@@ -32,8 +33,11 @@ This plan tracks the next improvements for SerializeReference usage preview and 
   - `ShowSearchTypeWindow`
   - `OpenAsset`
 - Use JSON pipe messages:
-  - `{"version":1,"command":"ShowSearchTypeWindow","payload":"Namespace.TypeName"}`
-  - `{"version":1,"command":"OpenAsset","payload":"Assets/Foo.prefab"}`
+  - `{"version":1,"command":"ShowSearchTypeWindow","payload":"Namespace.TypeName","replyPipe":"srd.abc123"}`
+  - `{"version":1,"command":"OpenAsset","payload":"Assets/Foo.prefab","replyPipe":"srd.abc123"}`
+- Include a temporary `replyPipe` field and read JSON responses from that pipe:
+  - `{"version":1,"status":"Ok","message":"Unity asset was selected: Assets/Foo.prefab"}`
+  - known statuses: `Ok`, `InvalidJson`, `EmptyCommand`, `UnknownCommand`, `AssetNotFound`, `TypeNotResolved`, `Timeout`, `Error`.
 - Show a clear error if the Unity bridge cannot be reached.
 
 ## Windows Support
@@ -46,7 +50,7 @@ This plan tracks the next improvements for SerializeReference usage preview and 
 
 1. Replace usage preview `MessageBox` with a simple structured UI.
 2. Wire asset row click or button to `OpenUnityAsset`.
-3. Smoke test on macOS first, then Windows with the Unity-side bridge.
+3. Smoke test request-response delivery on macOS first, then Windows with the Unity-side bridge.
 4. Keep string-command fallback in Unity temporarily if older Rider builds must remain supported.
 
 ## Open Questions

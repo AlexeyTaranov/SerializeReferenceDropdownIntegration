@@ -16,8 +16,9 @@ namespace SerializeReferenceDropdownBridge.Editor
         private const string PipeName = "SerializeReferenceDropdownIntegration";
         private const string OpenAssetCommand = "OpenAsset";
         private const string ShowSearchTypeWindowCommand = "ShowSearchTypeWindow";
+        private const int CommandExecutionTimeoutMs = 5000;
 
-        private static readonly ConcurrentQueue<Action> MainThreadActions = new ConcurrentQueue<Action>();
+        private static readonly ConcurrentQueue<PendingCommand> MainThreadActions = new ConcurrentQueue<PendingCommand>();
         private static Thread listenerThread;
         private static bool shouldStop;
         private static bool isListening;
@@ -125,7 +126,14 @@ namespace SerializeReferenceDropdownBridge.Editor
                         if (!string.IsNullOrWhiteSpace(commandJson))
                         {
                             Log.DevLog($"Received command JSON: {commandJson}");
-                            EnqueueCommand(commandJson);
+                            var command = ParseCommand(commandJson);
+                            if (command == null)
+                            {
+                                continue;
+                            }
+
+                            var response = ExecuteCommandWithResponse(command);
+                            WriteResponse(command.replyPipe, response);
                         }
                     }
                 }
@@ -143,13 +151,17 @@ namespace SerializeReferenceDropdownBridge.Editor
 
         private static string ReadCommand(Stream stream)
         {
-            var buffer = new byte[4096];
             using (var memory = new MemoryStream())
             {
-                int read;
-                while ((read = stream.Read(buffer, 0, buffer.Length)) > 0)
+                while (true)
                 {
-                    memory.Write(buffer, 0, read);
+                    var read = stream.ReadByte();
+                    if (read < 0 || read == '\n')
+                    {
+                        break;
+                    }
+
+                    memory.WriteByte((byte)read);
                 }
 
                 Log.DevLog($"Read {memory.Length} bytes from pipe.");
@@ -157,71 +169,114 @@ namespace SerializeReferenceDropdownBridge.Editor
             }
         }
 
-        private static void EnqueueCommand(string commandJson)
+        private static SrdBridgeCommand ParseCommand(string commandJson)
         {
-            SrdBridgeCommand command;
             try
             {
-                command = JsonUtility.FromJson<SrdBridgeCommand>(commandJson);
+                return JsonUtility.FromJson<SrdBridgeCommand>(commandJson);
             }
             catch (Exception exception)
             {
                 Log.Error($"Received invalid JSON command: {commandJson}\n{exception}");
+                return null;
+            }
+        }
+
+        private static SrdBridgeResponse ExecuteCommandWithResponse(SrdBridgeCommand command)
+        {
+            var pendingCommand = new PendingCommand(command);
+            MainThreadActions.Enqueue(pendingCommand);
+            if (!pendingCommand.Wait(CommandExecutionTimeoutMs))
+            {
+                return SrdBridgeResponse.Create("Timeout", "Unity bridge timed out while executing the command.");
+            }
+
+            return pendingCommand.Response;
+        }
+
+        private static void WriteResponse(string replyPipeName, SrdBridgeResponse response)
+        {
+            if (string.IsNullOrWhiteSpace(replyPipeName))
+            {
+                Log.DevWarning("Cannot send bridge response because reply pipe is empty.");
                 return;
             }
 
-            MainThreadActions.Enqueue(() => ExecuteCommand(command));
+            try
+            {
+                using (var client = new NamedPipeClientStream(".", replyPipeName, PipeDirection.Out))
+                {
+                    client.Connect(1000);
+                    var responseJson = JsonUtility.ToJson(response) + "\n";
+                    var responseBytes = Encoding.UTF8.GetBytes(responseJson);
+                    client.Write(responseBytes, 0, responseBytes.Length);
+                    client.Flush();
+                    Log.DevLog($"Sent response JSON to '{replyPipeName}': {responseJson.TrimEnd()}");
+                }
+            }
+            catch (Exception exception)
+            {
+                Log.Error($"Failed to send bridge response to '{replyPipeName}': {exception}");
+            }
         }
 
         private static void ExecuteMainThreadActions()
         {
-            while (MainThreadActions.TryDequeue(out var action))
+            while (MainThreadActions.TryDequeue(out var pendingCommand))
             {
-                action();
+                try
+                {
+                    pendingCommand.SetResponse(ExecuteCommand(pendingCommand.Command));
+                }
+                catch (Exception exception)
+                {
+                    Log.Error($"Command execution failed: {exception}");
+                    pendingCommand.SetResponse(SrdBridgeResponse.Create("Error", exception.Message));
+                }
             }
         }
 
-        private static void ExecuteCommand(SrdBridgeCommand command)
+        private static SrdBridgeResponse ExecuteCommand(SrdBridgeCommand command)
         {
             if (command == null || string.IsNullOrWhiteSpace(command.command))
             {
                 Log.Error("Received an empty command.");
-                return;
+                return SrdBridgeResponse.Create("EmptyCommand", "Unity bridge received an empty command.");
             }
 
             switch (command.command)
             {
                 case OpenAssetCommand:
                     Log.DevLog($"Executing {OpenAssetCommand}: {command.payload}");
-                    OpenAsset(command.payload);
-                    break;
+                    return OpenAsset(command.payload);
                 case ShowSearchTypeWindowCommand:
                     Log.DevLog($"Executing {ShowSearchTypeWindowCommand}: {command.payload}");
-                    ShowSearchTypeWindow(command.payload);
-                    break;
+                    return ShowSearchTypeWindow(command.payload);
                 default:
                     Log.Error($"Received unknown command: {command.command}");
-                    break;
+                    return SrdBridgeResponse.Create("UnknownCommand", $"Unity bridge received unknown command: {command.command}");
             }
         }
 
-        private static void ShowSearchTypeWindow(string typeName)
+        private static SrdBridgeResponse ShowSearchTypeWindow(string typeName)
         {
             if (string.IsNullOrWhiteSpace(typeName))
             {
                 Log.Error("Cannot open search window because type name is empty.");
-                return;
+                return SrdBridgeResponse.Create("EmptyCommand", "Cannot open search window because type name is empty.");
             }
 
             var type = ResolveType(typeName);
             if (type != null)
             {
                 SearchTypeWindowRequested?.Invoke(type);
-                return;
+                return SrdBridgeResponse.Create("Ok", $"Search type window requested for {type.FullName}.");
             }
 
             Log.DevWarning($"Could not resolve type '{typeName}'. Falling back to raw type name event.");
             SearchTypeWindowRequestedByName?.Invoke(typeName);
+            return SrdBridgeResponse.Create("TypeNotResolved",
+                $"Unity bridge could not resolve type '{typeName}', but raw type-name event was raised.");
         }
 
         private static Type ResolveType(string typeName)
@@ -251,24 +306,49 @@ namespace SerializeReferenceDropdownBridge.Editor
             return null;
         }
 
-        private static void OpenAsset(string assetPath)
+        private static SrdBridgeResponse OpenAsset(string assetPath)
         {
             if (string.IsNullOrWhiteSpace(assetPath))
             {
                 Log.Error("Cannot open asset because path is empty.");
-                return;
+                return SrdBridgeResponse.Create("EmptyCommand", "Cannot open asset because path is empty.");
             }
 
             var asset = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath);
             if (asset == null)
             {
                 Log.Error($"Could not find asset: {assetPath}");
-                return;
+                return SrdBridgeResponse.Create("AssetNotFound", $"Unity asset was not found: {assetPath}");
             }
 
             Selection.activeObject = asset;
             EditorUtility.FocusProjectWindow();
             EditorGUIUtility.PingObject(asset);
+            return SrdBridgeResponse.Create("Ok", $"Unity asset was selected: {assetPath}");
+        }
+
+        private sealed class PendingCommand
+        {
+            private readonly ManualResetEventSlim completed = new ManualResetEventSlim(false);
+
+            public PendingCommand(SrdBridgeCommand command)
+            {
+                Command = command;
+            }
+
+            public SrdBridgeCommand Command { get; }
+            public SrdBridgeResponse Response { get; private set; }
+
+            public bool Wait(int timeoutMs)
+            {
+                return completed.Wait(timeoutMs);
+            }
+
+            public void SetResponse(SrdBridgeResponse response)
+            {
+                Response = response;
+                completed.Set();
+            }
         }
     }
 
