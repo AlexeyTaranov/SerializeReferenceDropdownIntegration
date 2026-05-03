@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -46,19 +47,33 @@ public static class UnityAssetReferenceRewriter
         IReadOnlyCollection<UnityReferenceTypePrefabOverrideLineData> prefabOverrides,
         UnityTypeData newType)
     {
+        return PreviewChanges(lines, references, prefabOverrides, _ => newType);
+    }
+
+    public static IReadOnlyList<UnityAssetReferenceChange> PreviewChanges(IReadOnlyList<string> lines,
+        IReadOnlyCollection<UnityReferenceTypeLineData> references,
+        IReadOnlyCollection<UnityReferenceTypePrefabOverrideLineData> prefabOverrides,
+        Func<UnityTypeData, UnityTypeData?> tryMapType)
+    {
         var changes = new List<UnityAssetReferenceChange>();
 
         foreach (var prefabOverride in prefabOverrides)
         {
+            var newType = tryMapType(prefabOverride.Type);
+            if (newType == null)
+            {
+                continue;
+            }
+
             var oldLine = lines[prefabOverride.LineIndex];
             var newLine = UnityAssetReferenceParser.PrefabOverrideSerializeReferenceTypeRegex
-                .Replace(oldLine, $"value: {newType.AssemblyName} {newType.GetFullTypeName()}");
+                .Replace(oldLine, $"value: {newType.Value.AssemblyName} {newType.Value.GetFullTypeName()}");
 
             changes.Add(new UnityAssetReferenceChange(
                 UnityAssetReferenceChangeKind.PrefabOverride,
                 prefabOverride.LineIndex,
                 prefabOverride.Type,
-                newType,
+                newType.Value,
                 new[] { oldLine },
                 new[] { newLine },
                 1));
@@ -66,6 +81,12 @@ public static class UnityAssetReferenceRewriter
 
         foreach (var reference in references)
         {
+            var newType = tryMapType(reference.Type);
+            if (newType == null)
+            {
+                continue;
+            }
+
             var oldLineText = lines[reference.LineIndex];
             IReadOnlyList<string> oldLines;
             IReadOnlyList<string> newLines;
@@ -79,8 +100,8 @@ public static class UnityAssetReferenceRewriter
                 newLines = new[]
                 {
                     UnityAssetReferenceParser.SerializeReferenceRegex.Replace(oldLineText,
-                        $"type: {{class: {newType.ClassName}, ns: {newType.Namespace},"),
-                    $"{GetIndent(nextLineText)}asm: {newType.AssemblyName}}}"
+                        $"type: {{class: {newType.Value.ClassName}, ns: {newType.Value.Namespace},"),
+                    $"{GetIndent(nextLineText)}asm: {newType.Value.AssemblyName}}}"
                 };
                 replacedLineCount = 2;
             }
@@ -90,7 +111,7 @@ public static class UnityAssetReferenceRewriter
                 newLines = new[]
                 {
                     UnityAssetReferenceParser.SerializeReferenceRegex.Replace(oldLineText,
-                        $"type: {{class: {newType.ClassName}, ns: {newType.Namespace}, asm: {newType.AssemblyName}}}")
+                        $"type: {{class: {newType.Value.ClassName}, ns: {newType.Value.Namespace}, asm: {newType.Value.AssemblyName}}}")
                 };
             }
 
@@ -98,7 +119,7 @@ public static class UnityAssetReferenceRewriter
                 UnityAssetReferenceChangeKind.SerializeReference,
                 reference.LineIndex,
                 reference.Type,
-                newType,
+                newType.Value,
                 oldLines,
                 newLines,
                 replacedLineCount));

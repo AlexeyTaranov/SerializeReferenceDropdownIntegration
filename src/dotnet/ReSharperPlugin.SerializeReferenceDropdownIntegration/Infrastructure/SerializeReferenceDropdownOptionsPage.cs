@@ -114,67 +114,6 @@ public static class SerializeReferenceDropdownOptions
     }
 }
 
-[ShellComponent(Instantiation.DemandAnyThreadSafe)]
-public class SerializeReferenceDropdownOptionsPageRegistrar : IStartupActivity
-{
-    public SerializeReferenceDropdownOptionsPageRegistrar(Lifetime lifetime,
-        IOptionPagesList optionPagesList,
-        OptionsManager optionsManager)
-    {
-        SerializeReferenceDropdownOptions.Log($"registrar created. Registering page id={SerializeReferenceDropdownOptions.Id}, parent=Tools.");
-        try
-        {
-            var attribute = new OptionsPageAttribute(SerializeReferenceDropdownOptions.Id,
-                SerializeReferenceDropdownOptions.Name,
-                null)
-            {
-                ParentId = "Tools"
-            };
-            optionPagesList.AddOptionsPage(lifetime, typeof(SerializeReferenceDropdownOptionsPage), attribute);
-            optionsManager.AddOptionsPage(lifetime, typeof(SerializeReferenceDropdownOptionsPage), attribute);
-            SerializeReferenceDropdownOptions.Log("AddOptionsPage completed.");
-            SerializeReferenceDropdownOptions.LogRegisteredPages(optionPagesList);
-            SerializeReferenceDropdownOptions.LogOptionsManager(optionsManager);
-            SerializeReferenceDropdownOptions.TryOpenOptionsFromMarker(optionsManager);
-        }
-        catch (Exception exception)
-        {
-            SerializeReferenceDropdownOptions.Log($"AddOptionsPage failed.{Environment.NewLine}{exception}");
-            throw;
-        }
-    }
-}
-
-[ShellComponent(Instantiation.DemandAnyThreadSafe)]
-public class SerializeReferenceDropdownTopLevelOptionsPageRegistrar : IStartupActivity
-{
-    public SerializeReferenceDropdownTopLevelOptionsPageRegistrar(Lifetime lifetime,
-        IOptionPagesList optionPagesList,
-        OptionsManager optionsManager)
-    {
-        SerializeReferenceDropdownOptions.Log($"top-level debug registrar created. Registering page id={SerializeReferenceDropdownOptions.DebugTopLevelId}.");
-        try
-        {
-            var attribute = new OptionsPageAttribute(SerializeReferenceDropdownOptions.DebugTopLevelId,
-                $"{SerializeReferenceDropdownOptions.Name} Debug",
-                null)
-            {
-                Sequence = 9999
-            };
-            optionPagesList.AddOptionsPage(lifetime, typeof(SerializeReferenceDropdownOptionsPage), attribute);
-            optionsManager.AddOptionsPage(lifetime, typeof(SerializeReferenceDropdownOptionsPage), attribute);
-            SerializeReferenceDropdownOptions.Log("top-level debug AddOptionsPage completed.");
-            SerializeReferenceDropdownOptions.LogRegisteredPages(optionPagesList);
-            SerializeReferenceDropdownOptions.LogOptionsManager(optionsManager);
-        }
-        catch (Exception exception)
-        {
-            SerializeReferenceDropdownOptions.Log($"top-level debug AddOptionsPage failed.{Environment.NewLine}{exception}");
-            throw;
-        }
-    }
-}
-
 [ZoneMarker(typeof(IToolsOptionsPageImplZone))]
 [OptionsPage(SerializeReferenceDropdownOptions.Id, SerializeReferenceDropdownOptions.Name, null, ParentId = "Tools")]
 public class SerializeReferenceDropdownOptionsPage : BeSimpleOptionsPage

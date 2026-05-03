@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -95,6 +96,23 @@ public class UnityAssetReferenceScanner
     public async Task<IReadOnlyList<TypeReferenceData>> CollectTypeReferencesAsync(UnityTypeData targetType,
         CancellationToken cancellationToken, Property<double> progress, Property<string> description)
     {
+        return await CollectTypeReferencesAsync(
+            type => type == targetType,
+            targetType.ClassName,
+            cancellationToken,
+            progress,
+            description);
+    }
+
+    public async Task<IReadOnlyList<TypeReferenceData>> CollectTypeReferencesAsync(Func<UnityTypeData, bool> isTargetType,
+        string diagnosticTarget, CancellationToken cancellationToken)
+    {
+        return await CollectTypeReferencesAsync(isTargetType, diagnosticTarget, cancellationToken, null, null);
+    }
+
+    public async Task<IReadOnlyList<TypeReferenceData>> CollectTypeReferencesAsync(Func<UnityTypeData, bool> isTargetType,
+        string diagnosticTarget, CancellationToken cancellationToken, Property<double> progress, Property<string> description)
+    {
         if (!TryGetUnityAssetFiles(out var allUnityFiles))
         {
             if (description != null)
@@ -112,7 +130,7 @@ public class UnityAssetReferenceScanner
 
         if (description != null)
         {
-            description.Value = $"Scanning Unity assets for {targetType.ClassName}";
+            description.Value = $"Scanning Unity assets for {diagnosticTarget}";
         }
         var targetTypeData = new List<TypeReferenceData>();
         var allReferences = new List<UnityReferenceTypeLineData>();
@@ -141,8 +159,8 @@ public class UnityAssetReferenceScanner
 
             await UnityAssetReferenceParser.FillReferenceTypesBlocksAsync(filePath, allReferences, allPrefabOverrides);
 
-            var targetReferences = allReferences.Where(t => t.Type == targetType).ToArray();
-            var targetPrefabOverrides = allPrefabOverrides.Where(t => t.Type == targetType).ToArray();
+            var targetReferences = allReferences.Where(t => isTargetType(t.Type)).ToArray();
+            var targetPrefabOverrides = allPrefabOverrides.Where(t => isTargetType(t.Type)).ToArray();
             if (targetReferences.Length > 0 || targetPrefabOverrides.Length > 0)
             {
                 targetTypeData.Add(new TypeReferenceData(filePath, targetReferences, targetPrefabOverrides));

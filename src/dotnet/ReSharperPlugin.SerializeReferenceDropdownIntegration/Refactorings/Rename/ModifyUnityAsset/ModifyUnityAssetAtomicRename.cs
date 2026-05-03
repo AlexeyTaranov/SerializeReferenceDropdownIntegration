@@ -23,6 +23,8 @@ public class ModifyUnityAssetAtomicRename : AtomicRenameBase
     private readonly PluginSessionSettings sessionSettings;
     private readonly PluginDiagnostics diagnostics;
     private readonly UnityTypeData? oldType;
+    private readonly string oldNamespace;
+    private readonly string newNamespace;
     private ModifyUnityAssetModel model;
 
     public ModifyUnityAssetAtomicRename(IDeclaredElement declaredElement, string newName,
@@ -37,6 +39,8 @@ public class ModifyUnityAssetAtomicRename : AtomicRenameBase
         NewName = newName;
         OldName = declaredElement.ShortName;
         oldType = ExtractCurrentType(declaredElement as ITypeMember);
+        oldNamespace = ExtractCurrentNamespace(declaredElement as INamespace);
+        newNamespace = BuildNewNamespace(oldNamespace, newName);
     }
 
     public override IRefactoringPage CreateRenamesConfirmationPage(IRenameWorkflow renameWorkflow,
@@ -47,16 +51,14 @@ public class ModifyUnityAssetAtomicRename : AtomicRenameBase
             return null;
         }
 
-        if (oldType == null)
+        model = CreateModel();
+        if (model == null)
         {
             return null;
         }
 
-        var newType = oldType.Value with { ClassName = NewName };
-
-        model = new ModifyUnityAssetModel(oldType.Value, newType, scanner, documentWriter, diagnostics);
         return new ModifyUnityAssetRefactoringPage(((RefactoringWorkflowBase)renameWorkflow).WorkflowExecuterLifetime,
-            model, sessionSettings);
+            model, sessionSettings, diagnostics);
     }
 
     private UnityTypeData? ExtractCurrentType(ITypeMember typeMember)
@@ -74,16 +76,68 @@ public class ModifyUnityAssetAtomicRename : AtomicRenameBase
         return null;
     }
 
+    private static string ExtractCurrentNamespace(INamespace namespaceElement)
+    {
+        if (namespaceElement == null || namespaceElement.IsRootNamespace)
+        {
+            return null;
+        }
+
+        return namespaceElement.QualifiedName;
+    }
+
+    private static string BuildNewNamespace(string oldQualifiedNamespace, string newName)
+    {
+        if (string.IsNullOrEmpty(oldQualifiedNamespace) || string.IsNullOrEmpty(newName))
+        {
+            return null;
+        }
+
+        if (newName.Contains("."))
+        {
+            return newName;
+        }
+
+        var lastDot = oldQualifiedNamespace.LastIndexOf('.');
+        return lastDot < 0
+            ? newName
+            : $"{oldQualifiedNamespace.Substring(0, lastDot + 1)}{newName}";
+    }
+
+    private ModifyUnityAssetModel CreateModel()
+    {
+        if (oldType != null)
+        {
+            var newType = oldType.Value with { ClassName = NewName };
+            return new ModifyUnityAssetModel(oldType.Value, newType, scanner, documentWriter, diagnostics);
+        }
+
+        if (!string.IsNullOrEmpty(oldNamespace) && !string.IsNullOrEmpty(newNamespace))
+        {
+            return ModifyUnityAssetModel.CreateNamespaceRenameModel(
+                oldNamespace,
+                newNamespace,
+                scanner,
+                documentWriter,
+                diagnostics);
+        }
+
+        return null;
+    }
+
     public override void Rename(IRenameRefactoring executer, IProgressIndicator pi, bool hasConflictsWithDeclarations,
         IRefactoringDriver driver, PreviousAtomicRenames previousAtomicRenames)
     {
-        if (sessionSettings.ModifyYamlShowBehaviour == ModifyYamlShowBehaviour.DontShow || oldType == null)
+        if (sessionSettings.ModifyYamlShowBehaviour == ModifyYamlShowBehaviour.DontShow)
         {
             return;
         }
 
-        var newType = oldType.Value with { ClassName = NewName };
-        model ??= new ModifyUnityAssetModel(oldType.Value, newType, scanner, documentWriter, diagnostics);
+        model ??= CreateModel();
+        if (model == null)
+        {
+            return;
+        }
 
         try
         {

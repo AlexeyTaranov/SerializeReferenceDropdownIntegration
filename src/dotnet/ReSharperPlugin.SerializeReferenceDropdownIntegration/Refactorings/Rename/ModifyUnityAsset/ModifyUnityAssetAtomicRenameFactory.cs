@@ -1,8 +1,10 @@
 using System.Collections.Generic;
+using System.Linq;
 using JetBrains.Application;
 using JetBrains.ProjectModel;
 using JetBrains.ReSharper.Feature.Services.Refactorings.Specific.Rename;
 using JetBrains.ReSharper.Psi;
+using JetBrains.ReSharper.Psi.Modules;
 using JetBrains.ReSharper.Psi.VB.Util;
 using ReSharperPlugin.SerializeReferenceDropdownIntegration.Infrastructure;
 using ReSharperPlugin.SerializeReferenceDropdownIntegration.Unity.AssetsDatabase;
@@ -21,7 +23,12 @@ public class ModifyUnityAssetAtomicRenameFactory : IAtomicRenameFactory
         renameDeclaredElements.Clear();
 
         var isClass = declaredElement.IsClass();
-        return isClass && declaredElement.IsFromUnityProject();
+        if (isClass)
+        {
+            return declaredElement.IsFromUnityProject();
+        }
+
+        return IsUnityNamespace(declaredElement);
     }
 
     public RenameAvailabilityCheckResult CheckRenameAvailability(IDeclaredElement element)
@@ -32,12 +39,13 @@ public class ModifyUnityAssetAtomicRenameFactory : IAtomicRenameFactory
     public IEnumerable<AtomicRenameBase> CreateAtomicRenames(IDeclaredElement declaredElement, string newName,
         bool doNotAddBindingConflicts)
     {
-        if (renameDeclaredElements.Contains(declaredElement.ShortName))
+        var elementKey = GetElementKey(declaredElement);
+        if (renameDeclaredElements.Contains(elementKey))
         {
             return [];
         }
 
-        renameDeclaredElements.Add(declaredElement.ShortName);
+        renameDeclaredElements.Add(elementKey);
         var solution = declaredElement.GetSolution();
         return [new ModifyUnityAssetAtomicRename(
             declaredElement,
@@ -46,5 +54,32 @@ public class ModifyUnityAssetAtomicRenameFactory : IAtomicRenameFactory
             solution.GetComponent<UnityAssetReferenceRiderDocumentWriter>(),
             solution.GetComponent<PluginSessionSettings>(),
             solution.GetComponent<PluginDiagnostics>())];
+    }
+
+    private static string GetElementKey(IDeclaredElement declaredElement)
+    {
+        return declaredElement is INamespace namespaceElement
+            ? $"namespace:{namespaceElement.QualifiedName}"
+            : $"element:{declaredElement.ShortName}";
+    }
+
+    private static bool IsUnityNamespace(IDeclaredElement declaredElement)
+    {
+        if (declaredElement is not INamespace namespaceElement || namespaceElement.IsRootNamespace)
+        {
+            return false;
+        }
+
+        if (declaredElement.GetSourceFiles().Any(sourceFile => sourceFile.GetProject().IsUnityProject()))
+        {
+            return true;
+        }
+
+        return namespaceElement.Modules.Any(IsUnityPsiModule);
+    }
+
+    private static bool IsUnityPsiModule(IPsiModule psiModule)
+    {
+        return psiModule.ContainingProjectModule is IProject project && project.IsUnityProject();
     }
 }

@@ -14,8 +14,9 @@ public class ModifyUnityAssetModel
 {
     private const int MaxPreviewFiles = 10;
 
-    private readonly UnityTypeData oldType;
-    private readonly UnityTypeData newType;
+    private readonly Func<UnityTypeData, bool> isTargetType;
+    private readonly Func<UnityTypeData, UnityTypeData?> tryMapType;
+    private readonly string diagnosticTarget;
     private readonly UnityAssetReferenceScanner scanner;
     private readonly UnityAssetReferenceDocumentWriter documentWriter;
     private readonly PluginDiagnostics diagnostics;
@@ -33,9 +34,55 @@ public class ModifyUnityAssetModel
 
     public ModifyUnityAssetModel(UnityTypeData oldType, UnityTypeData newType, UnityAssetReferenceScanner scanner,
         UnityAssetReferenceDocumentWriter documentWriter, PluginDiagnostics diagnostics)
+        : this(
+            type => type == oldType,
+            type => type == oldType ? newType : null,
+            oldType.GetFullTypeName(),
+            scanner,
+            documentWriter,
+            diagnostics)
     {
-        this.oldType = oldType;
-        this.newType = newType;
+    }
+
+    public static ModifyUnityAssetModel CreateNamespaceRenameModel(string oldNamespace, string newNamespace,
+        UnityAssetReferenceScanner scanner, UnityAssetReferenceDocumentWriter documentWriter,
+        PluginDiagnostics diagnostics)
+    {
+        return new ModifyUnityAssetModel(
+            type => IsSameOrNestedNamespace(type.Namespace, oldNamespace),
+            type => IsSameOrNestedNamespace(type.Namespace, oldNamespace)
+                ? type with { Namespace = RenameNamespacePrefix(type.Namespace, oldNamespace, newNamespace) }
+                : null,
+            oldNamespace,
+            scanner,
+            documentWriter,
+            diagnostics);
+    }
+
+    private static bool IsSameOrNestedNamespace(string currentNamespace, string oldNamespace)
+    {
+        return currentNamespace == oldNamespace ||
+               currentNamespace.StartsWith(oldNamespace + ".", StringComparison.Ordinal);
+    }
+
+    private static string RenameNamespacePrefix(string currentNamespace, string oldNamespace, string newNamespace)
+    {
+        if (currentNamespace == oldNamespace)
+        {
+            return newNamespace;
+        }
+
+        return newNamespace + currentNamespace.Substring(oldNamespace.Length);
+    }
+
+    private ModifyUnityAssetModel(Func<UnityTypeData, bool> isTargetType,
+        Func<UnityTypeData, UnityTypeData?> tryMapType, string diagnosticTarget,
+        UnityAssetReferenceScanner scanner, UnityAssetReferenceDocumentWriter documentWriter,
+        PluginDiagnostics diagnostics)
+    {
+        this.isTargetType = isTargetType;
+        this.tryMapType = tryMapType;
+        this.diagnosticTarget = diagnosticTarget;
         this.scanner = scanner;
         this.documentWriter = documentWriter;
         this.diagnostics = diagnostics;
@@ -46,7 +93,7 @@ public class ModifyUnityAssetModel
         targetTypeData.Clear();
         previewData.Clear();
         previewLoaded = false;
-        var collectedTypeData = await scanner.CollectTypeReferencesAsync(oldType, cancellationToken);
+        var collectedTypeData = await scanner.CollectTypeReferencesAsync(isTargetType, diagnosticTarget, cancellationToken);
         if (collectedTypeData == null)
         {
             return -1;
@@ -60,7 +107,7 @@ public class ModifyUnityAssetModel
                 File.ReadAllLines(data.FilePath),
                 data.References,
                 data.PrefabOverrides,
-                newType);
+                tryMapType);
 
             if (changes.Count > 0)
             {
@@ -121,7 +168,7 @@ public class ModifyUnityAssetModel
 
     public void LogModificationFailure(Exception exception)
     {
-        diagnostics.Error($"Failed to modify Unity assets for '{oldType.GetFullTypeName()}'.", exception);
+        diagnostics.Error($"Failed to modify Unity assets for '{diagnosticTarget}'.", exception);
     }
 
 }

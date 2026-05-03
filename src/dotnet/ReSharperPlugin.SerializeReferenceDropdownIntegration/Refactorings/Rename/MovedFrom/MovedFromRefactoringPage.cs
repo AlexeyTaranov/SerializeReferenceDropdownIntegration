@@ -52,5 +52,5 @@ public class MovedFromRefactoringPage : SingleBeRefactoringPage
     }
 
     public override string Title => "Rename with MovedFrom unity Attribute";
-    public override string Description => "Renaming a class can break serialize references to this class";
+    public override string Description => string.Empty;
 }

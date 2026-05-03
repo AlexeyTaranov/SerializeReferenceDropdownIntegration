@@ -24,64 +24,51 @@ public class ModifyUnityAssetRefactoringPage : SingleBeRefactoringPage
     private readonly IProperty<bool> hidePageOnThisSession;
     private readonly IProperty<bool> applyModifiedFiles;
     private readonly PluginSessionSettings sessionSettings;
+    private readonly PluginDiagnostics diagnostics;
 
     private readonly Action fetchReferencesCount;
 
 
     // TODO Replace strings with resourceManager?
     public ModifyUnityAssetRefactoringPage(Lifetime lifetime, ModifyUnityAssetModel model,
-        PluginSessionSettings sessionSettings) : base(lifetime)
+        PluginSessionSettings sessionSettings, PluginDiagnostics diagnostics = null) : base(lifetime)
     {
         this.model = model;
         this.sessionSettings = sessionSettings;
-        myContent = BeControls.BeLabel("Rider can update Unity YAML assets that still point to the old SerializeReference type.").InAutoGrid();
-        myContent.AddElement(BeControls.BeLabel("Scan the project, review affected files, then choose whether to write YAML changes to disk."));
+        this.diagnostics = diagnostics;
+        diagnostics?.Info("Unity YAML refactoring page constructed.");
+        myContent = BeControls.GetEmptyGrid(GridOrientation.Vertical, BeMarginType.ReducedIntercellSpacing);
 
-        AddSection("Scan result", "Only Unity asset files containing the renamed managed-reference type are counted.");
         var filesCountLabel = BeControls.BeLabel("Scan has not run yet.");
-        var previewLabel = BeControls.BeLabel("Affected files will appear here after scanning.");
         var referencesCount = new Property<int>("References count in assets folder", -1);
         var fetchingFilesCount = new Property<bool>("Fetching files count", false);
         var applyModifiedFilesEnabled = new ViewableProperty<bool>(false);
         referencesCount.PropertyChanged += (sender, args) => filesCountLabel.SetText(GetFilesCountText());
         fetchingFilesCount.PropertyChanged += (sender, args) => filesCountLabel.SetText(GetFilesCountText());
-        myContent.AddElement(filesCountLabel);
 
-        var fetchFilesCountButton = BeControls.GetButton("Scan Unity assets again", lifetime,
+        myContent.AddElement(new BeSpacer());
+        var fetchFilesCountButton = BeControls.GetButton("Scan / Rescan", lifetime,
             () => fetchReferencesCount.Invoke());
         fetchReferencesCount = async void () => await FetchCountAsync();
-
         myContent.AddElement(fetchFilesCountButton);
-
-        AddSection("Affected files", "This list is intentionally short; use VCS diff for exact YAML changes.");
-        myContent.AddElement(previewLabel);
+        myContent.AddElement(filesCountLabel);
 
         applyModifiedFiles = new Property<bool>("Apply modified Unity asset files",
             model.ShouldApplyModifiedFiles || sessionSettings.DefaultApplyModifiedUnityAssetFiles);
 
-        AddSection("Apply changes", "Keep this disabled if you only want to rename code and inspect assets manually.");
-        var applyModifiedFilesCheckBox = applyModifiedFiles.GetBeCheckBox(lifetime, "Apply these Unity asset file changes");
-        applyModifiedFilesCheckBox.EnableWhen(lifetime, applyModifiedFilesEnabled);
-        myContent.AddElement(applyModifiedFilesCheckBox);
-        if (sessionSettings.ShowApplyModifiedUnityAssetFilesWarning)
-        {
-            myContent.AddElement(BeControls.BeLabel("This writes YAML assets to disk. Review the resulting diff before committing."));
-        }
+        myContent.AddElement(new BeSpacer());
+        var applyModifiedFilesRadioGroup = applyModifiedFiles.GetBeRadioGroup(lifetime,
+            "YAML changes",
+            new[] { false, true },
+            present: (apply, _) => apply ? "Write YAML changes to disk" : "No changes",
+            horizontal: false);
+        applyModifiedFilesRadioGroup.EnableWhen(lifetime, applyModifiedFilesEnabled);
+        myContent.AddElement(applyModifiedFilesRadioGroup);
 
-        AddSection("Preference");
+        myContent.AddElement(new BeSpacer());
         hidePageOnThisSession = new Property<bool>("Hide modify file on this session",
             sessionSettings.ModifyYamlShowBehaviour == ModifyYamlShowBehaviour.DontShow);
         myContent.AddElement(hidePageOnThisSession.GetBeCheckBox(lifetime, "Do not show this step again"));
-
-        void AddSection(string title, string description = null)
-        {
-            myContent.AddElement(new BeSpacer());
-            myContent.AddElement(BeControls.BeLabel(title));
-            if (!string.IsNullOrEmpty(description))
-            {
-                myContent.AddElement(BeControls.BeLabel(description));
-            }
-        }
 
         string GetFilesCountText()
         {
@@ -114,15 +101,14 @@ public class ModifyUnityAssetRefactoringPage : SingleBeRefactoringPage
             fetchingFilesCount.Value = true;
             applyModifiedFilesEnabled.Value = false;
             applyModifiedFiles.Value = false;
-            previewLabel.SetText("Scanning files...");
 
             var result = await Task.Run(() =>
                 model.FetchSerializeReferenceCountInAssetsFolderAsync(lifetime.ToCancellationToken()));
 
             referencesCount.Value = result;
-            previewLabel.SetText(model.BuildPreviewText());
             fetchingFilesCount.Value = false;
             applyModifiedFilesEnabled.Value = result > 0;
+            diagnostics?.Info($"Unity YAML refactoring page scan completed, referencesCount={result}, previewFiles={model.PreviewFilesCount}.");
             if (result > 0)
             {
                 applyModifiedFiles.Value = sessionSettings.DefaultApplyModifiedUnityAssetFiles;
@@ -140,7 +126,6 @@ public class ModifyUnityAssetRefactoringPage : SingleBeRefactoringPage
         else
         {
             filesCountLabel.SetText(GetFilesCountText());
-            previewLabel.SetText(model.BuildPreviewText());
         }
     }
 
@@ -152,12 +137,13 @@ public class ModifyUnityAssetRefactoringPage : SingleBeRefactoringPage
         sessionSettings.ModifyYamlShowBehaviour = hidePageOnThisSession.Value
             ? ModifyYamlShowBehaviour.DontShow
             : ModifyYamlShowBehaviour.ShowAlways;
+        diagnostics?.Info($"Unity YAML refactoring page committed, shouldApply={model.ShouldApplyModifiedFiles}, hideThisSession={hidePageOnThisSession.Value}.");
     }
 
 
     public override bool DoNotShow => sessionSettings.ModifyYamlShowBehaviour == ModifyYamlShowBehaviour.DontShow;
 
-    public override string Title => "Update Unity YAML assets";
+    public override string Title => "Modify Serialize Reference";
 
-    public override string Description => "Review SerializeReference asset changes before applying rename";
+    public override string Description => string.Empty;
 }

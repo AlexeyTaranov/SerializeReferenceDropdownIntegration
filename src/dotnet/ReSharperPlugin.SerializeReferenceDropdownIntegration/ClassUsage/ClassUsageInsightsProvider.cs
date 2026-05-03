@@ -36,8 +36,6 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
     private readonly PluginDiagnostics diagnostics;
     private readonly PluginSessionSettings sessionSettings;
     private readonly ToUnitySrdPipe toUnitySrdPipe;
-    private readonly IDialogHost dialogHost;
-    private readonly IBePopupHost popupHost;
     private readonly object previewLifetimeLock = new();
     private LifetimeDefinition currentPreviewLifetimeDefinition;
 
@@ -48,9 +46,7 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
         UnityAssetReferenceScanner scanner,
         PluginDiagnostics diagnostics,
         PluginSessionSettings sessionSettings,
-        ToUnitySrdPipe toUnitySrdPipe,
-        IDialogHost dialogHost,
-        IBePopupHost popupHost)
+        ToUnitySrdPipe toUnitySrdPipe)
     {
         this.lifetime = lifetime;
         this.shellLocks = shellLocks;
@@ -60,8 +56,6 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
         this.diagnostics = diagnostics;
         this.sessionSettings = sessionSettings;
         this.toUnitySrdPipe = toUnitySrdPipe;
-        this.dialogHost = dialogHost;
-        this.popupHost = popupHost;
     }
 
     public bool IsAvailableIn(ISolution solution)
@@ -143,7 +137,7 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
 
             var preview = UnityAssetUsagePreviewBuilder.Build(solution.SolutionDirectory.FullPath,
                 ToUsagePreviewReferences(references));
-            await shellLocks.StartMainRead(previewLifetime, () => ShowReferencesPreview(preview, clickInfo));
+            await shellLocks.StartMainRead(previewLifetime, () => ShowReferencesPreview(solution, preview, clickInfo));
         }
         catch (Exception exception)
         {
@@ -190,8 +184,10 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
             .ToArray();
     }
 
-    private void ShowReferencesPreview(UnityAssetUsagePreview preview, CodeInsightsClickInfo clickInfo)
+    private void ShowReferencesPreview(ISolution solution, UnityAssetUsagePreview preview, CodeInsightsClickInfo clickInfo)
     {
+        var dialogHost = solution.GetComponent<IDialogHost>();
+        var popupHost = solution.GetComponent<IBePopupHost>();
         var dialog = new UnityAssetUsagePreviewDialog(dialogHost, popupHost, lifetime, diagnostics, OpenAssetInUnity);
         dialog.Show(preview, clickInfo);
     }

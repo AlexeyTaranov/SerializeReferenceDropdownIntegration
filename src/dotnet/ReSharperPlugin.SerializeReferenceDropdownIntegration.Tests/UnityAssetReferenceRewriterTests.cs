@@ -103,6 +103,69 @@ public class UnityAssetReferenceRewriterTests
             "        asm: SerializeReferenceDropdownSample}"));
     }
 
+    [Test]
+    public void RewritesSerializeReferenceNamespace()
+    {
+        var circleType = new UnityTypeData("Circle", "SRD.Sample", "SerializeReferenceDropdownSample");
+        var squareType = new UnityTypeData("Square", "SRD.Sample", "SerializeReferenceDropdownSample");
+        var nestedType = new UnityTypeData("Hexagon", "SRD.Sample.Nested", "SerializeReferenceDropdownSample");
+        var otherType = new UnityTypeData("Triangle", "SRD.Other", "SerializeReferenceDropdownSample");
+        var lines = new[]
+        {
+            "      type: {class: Circle, ns: SRD.Sample, asm: SerializeReferenceDropdownSample}",
+            "      type: {class: Square, ns: SRD.Sample, asm: SerializeReferenceDropdownSample}",
+            "      type: {class: Hexagon, ns: SRD.Sample.Nested, asm: SerializeReferenceDropdownSample}",
+            "      type: {class: Triangle, ns: SRD.Other, asm: SerializeReferenceDropdownSample}"
+        };
+
+        var changes = UnityAssetReferenceRewriter.PreviewChanges(
+            lines,
+            new[]
+            {
+                new UnityReferenceTypeLineData(circleType, 0, false),
+                new UnityReferenceTypeLineData(squareType, 1, false),
+                new UnityReferenceTypeLineData(nestedType, 2, false),
+                new UnityReferenceTypeLineData(otherType, 3, false)
+            },
+            new UnityReferenceTypePrefabOverrideLineData[0],
+            type => type.Namespace == "SRD.Sample" || type.Namespace.StartsWith("SRD.Sample.")
+                ? type with { Namespace = "SRD.Renamed" + type.Namespace.Substring("SRD.Sample".Length) }
+                : null);
+        var rewrittenLines = UnityAssetReferenceRewriter.ApplyChanges(lines, changes);
+
+        Assert.That(changes, Has.Count.EqualTo(3));
+        Assert.That(rewrittenLines[0], Is.EqualTo(
+            "      type: {class: Circle, ns: SRD.Renamed, asm: SerializeReferenceDropdownSample}"));
+        Assert.That(rewrittenLines[1], Is.EqualTo(
+            "      type: {class: Square, ns: SRD.Renamed, asm: SerializeReferenceDropdownSample}"));
+        Assert.That(rewrittenLines[2], Is.EqualTo(
+            "      type: {class: Hexagon, ns: SRD.Renamed.Nested, asm: SerializeReferenceDropdownSample}"));
+        Assert.That(rewrittenLines[3], Is.EqualTo(
+            "      type: {class: Triangle, ns: SRD.Other, asm: SerializeReferenceDropdownSample}"));
+    }
+
+    [Test]
+    public void RewritesPrefabOverrideNamespace()
+    {
+        var oldType = new UnityTypeData("Circle", "SRD.Sample", "SerializeReferenceDropdownSample");
+        var lines = new[]
+        {
+            "      propertyPath: 'managedReferences[1988581617954979845]'",
+            "      value: SerializeReferenceDropdownSample SRD.Sample.Circle"
+        };
+
+        var changes = UnityAssetReferenceRewriter.PreviewChanges(
+            lines,
+            new UnityReferenceTypeLineData[0],
+            new[] { new UnityReferenceTypePrefabOverrideLineData(oldType, 1) },
+            type => type.Namespace == "SRD.Sample" ? type with { Namespace = "SRD.Renamed" } : null);
+        var rewrittenLines = UnityAssetReferenceRewriter.ApplyChanges(lines, changes);
+
+        Assert.That(changes, Has.Count.EqualTo(1));
+        Assert.That(changes[0].NewType, Is.EqualTo(oldType with { Namespace = "SRD.Renamed" }));
+        Assert.That(rewrittenLines[1], Is.EqualTo("      value: SerializeReferenceDropdownSample SRD.Renamed.Circle"));
+    }
+
     private static string GetFixturePath(string fileName)
     {
         return Path.Combine(TestContext.CurrentContext.TestDirectory, "TestData", "UnityAssets", "Assets", fileName);
