@@ -3,6 +3,8 @@ using System.IO.Pipes;
 using System.Text;
 using System.Threading.Tasks;
 using JetBrains.Application.Parts;
+using JetBrains.IDE.UI;
+using JetBrains.Lifetimes;
 using JetBrains.ProjectModel;
 using JetBrains.Util;
 using ReSharperPlugin.SerializeReferenceDropdownIntegration.Infrastructure;
@@ -21,14 +23,20 @@ public class ToUnitySrdPipe
     private readonly PluginSessionSettings sessionSettings;
     private readonly PluginDiagnostics diagnostics;
     private readonly ToUnityWindowFocusSwitch windowFocusSwitch;
+    private readonly UnityBridgePackageManifestDetector bridgePackageDetector;
+    private readonly MissingUnityBridgePackageDialog missingBridgePackageDialog;
     private bool searchWindowHintShown;
+    private bool missingBridgePackageWarningShown;
 
     public ToUnitySrdPipe(PluginSessionSettings sessionSettings, PluginDiagnostics diagnostics,
-        ToUnityWindowFocusSwitch windowFocusSwitch)
+        ToUnityWindowFocusSwitch windowFocusSwitch, UnityBridgePackageManifestDetector bridgePackageDetector,
+        IDialogHost dialogHost, Lifetime lifetime)
     {
         this.sessionSettings = sessionSettings;
         this.diagnostics = diagnostics;
         this.windowFocusSwitch = windowFocusSwitch;
+        this.bridgePackageDetector = bridgePackageDetector;
+        missingBridgePackageDialog = new MissingUnityBridgePackageDialog(dialogHost, lifetime, sessionSettings);
     }
 
     public void OpenUnitySearchToolWindowWithType(string typeName)
@@ -37,6 +45,11 @@ public class ToUnitySrdPipe
             Names.SRDShort);
 
         if (sessionSettings.NeedOpenSearchTool != true)
+        {
+            return;
+        }
+
+        if (!CanSendUnityBridgeCommand())
         {
             return;
         }
@@ -59,8 +72,30 @@ public class ToUnitySrdPipe
             return;
         }
 
+        if (!CanSendUnityBridgeCommand())
+        {
+            return;
+        }
+
         Task.Run(() => SendCommandToPipeAndSwitchFocus(BuildJsonCommand(OpenAssetCommand, relativeAssetPath),
             $"asset '{relativeAssetPath}'"));
+    }
+
+    private bool CanSendUnityBridgeCommand()
+    {
+        if (bridgePackageDetector.HasBridgePackageInstalled())
+        {
+            return true;
+        }
+
+        diagnostics.Warn($"Unity bridge package '{UnityBridgePackageManifest.PackageId}' is missing from manifest '{bridgePackageDetector.GetManifestPath()}'.");
+        if (sessionSettings.ShowMissingUnityBridgePackageWarning && !missingBridgePackageWarningShown)
+        {
+            missingBridgePackageDialog.Show(bridgePackageDetector.GetManifestPath());
+            missingBridgePackageWarningShown = true;
+        }
+
+        return false;
     }
 
     private void SendCommandToPipeAndSwitchFocus(string command, string diagnosticTarget)

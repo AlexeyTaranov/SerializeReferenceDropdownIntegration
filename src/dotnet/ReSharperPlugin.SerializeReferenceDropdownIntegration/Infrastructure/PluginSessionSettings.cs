@@ -42,6 +42,9 @@ public class PluginSettings
 
     [SettingsEntry(UnityWindowFocusSwitchSettings.ShowPopup, "Switch to Unity after sending Unity bridge commands")]
     public UnityWindowFocusSwitchSettings UnityWindowFocusSwitchSettings { get; set; }
+
+    [SettingsEntry(true, "Show warning when Unity SRD package is missing")]
+    public bool ShowMissingUnityBridgePackageWarning { get; set; }
 }
 
 public enum UnityWindowFocusSwitchSettings
@@ -64,6 +67,7 @@ public class PluginSessionSettings
     private const string KeyAutoRefreshUsageCountDatabase = "serializeReferenceDropdown.autoRefreshUsageCountDatabase";
     private const string KeyShowUsagePreviewOnClick = "serializeReferenceDropdown.showUsagePreviewOnClick";
     private const string KeyUnityWindowFocusSwitchSettings = "serializeReferenceDropdown.unityWindowFocusSwitchSettings";
+    private const string KeyShowMissingUnityBridgePackageWarning = "serializeReferenceDropdown.showMissingUnityBridgePackageWarning";
 
     private readonly ISettingsStore settingsStore;
 
@@ -173,6 +177,17 @@ public class PluginSessionSettings
         {
             Write(settings => settings.UnityWindowFocusSwitchSettings, value);
             WriteSharedSetting(KeyUnityWindowFocusSwitchSettings, value.ToString());
+        }
+    }
+
+    public bool ShowMissingUnityBridgePackageWarning
+    {
+        get => ReadBool(KeyShowMissingUnityBridgePackageWarning,
+            Read(settings => settings.ShowMissingUnityBridgePackageWarning));
+        set
+        {
+            Write(settings => settings.ShowMissingUnityBridgePackageWarning, value);
+            WriteSharedSetting(KeyShowMissingUnityBridgePackageWarning, value.ToString());
         }
     }
 

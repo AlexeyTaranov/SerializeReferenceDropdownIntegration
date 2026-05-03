@@ -226,6 +226,11 @@ public class SerializeReferenceDropdownOptionsPage : BeSimpleOptionsPage
         AddHeader("Unity integration");
         AddComboEnum((PluginSettings settings) => settings.UnityWindowFocusSwitchSettings,
             "Switch to Unity after bridge command:");
+        AddBoolOption((PluginSettings settings) => settings.ShowMissingUnityBridgePackageWarning,
+            true,
+            false,
+            new RichText("Show warning when Unity SRD package is missing"),
+            "Checks Packages/manifest.json before sending Unity bridge commands.");
 
         AddKeyword("SerializeReference", "Unity", "YAML", "asset", nameof(ModifyYamlShowBehaviour),
             nameof(MovedFromRefactoringSettings), nameof(UnityWindowFocusSwitchSettings), "MovedFrom");
