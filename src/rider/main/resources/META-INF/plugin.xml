@@ -7,8 +7,7 @@
     <description>
         <![CDATA[
         <p>Rider integration for Unity projects that use SerializeReference-heavy workflows.</p>
-        <p>The plugin shows SerializeReference usage counts, previews Unity asset usages, helps update Unity YAML during class and namespace rename, and can communicate with the optional Unity bridge package to select referenced assets in Unity.</p>
-        <p>Unity YAML writes are explicit opt-in and should be reviewed with VCS.</p>
+        <p>The plugin shows SerializeReference usage counts, helps update Unity YAML during class and namespace rename.</p>
         ]]>
     </description>
 

@@ -1,0 +1,19 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="textGradient" x1="20" y1="256" x2="492" y2="256" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#A855F7"/>
+      <stop offset="0.5" stop-color="#4F8DFF"/>
+      <stop offset="1" stop-color="#18D5C3"/>
+    </linearGradient>
+  </defs>
+
+  <text
+    x="256"
+    y="342"
+    text-anchor="middle"
+    font-family="Inter, JetBrains Mono, Arial, sans-serif"
+    font-size="218"
+    font-weight="900"
+    letter-spacing="-16"
+    fill="url(#textGradient)">SRD</text>
+</svg>
