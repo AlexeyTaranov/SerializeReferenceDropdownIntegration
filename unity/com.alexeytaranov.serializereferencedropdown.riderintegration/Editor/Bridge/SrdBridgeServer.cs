@@ -19,9 +19,10 @@ namespace SerializeReferenceDropdownBridge.Bridge
         private const int CommandExecutionTimeoutMs = 5000;
 
         private static readonly ConcurrentQueue<PendingCommand> MainThreadActions = new ConcurrentQueue<PendingCommand>();
+        private static readonly object ListenerLock = new object();
         private static Thread listenerThread;
-        private static bool shouldStop;
-        private static bool isListening;
+        private static volatile bool shouldStop;
+        private static volatile bool isListening;
         private static bool isEnabled = true;
 
         public static event Action<Type> SearchTypeWindowRequested;
@@ -63,30 +64,38 @@ namespace SerializeReferenceDropdownBridge.Bridge
 
         private static void StartListener()
         {
-            if (isListening)
+            lock (ListenerLock)
             {
-                return;
+                if (isListening && listenerThread != null && listenerThread.IsAlive)
+                {
+                    return;
+                }
+
+                shouldStop = false;
+                isListening = true;
+                listenerThread = new Thread(Listen)
+                {
+                    IsBackground = true,
+                    Name = "SRD bridge pipe listener"
+                };
+                listenerThread.Start();
             }
 
-            shouldStop = false;
-            isListening = true;
-            listenerThread = new Thread(Listen)
-            {
-                IsBackground = true,
-                Name = "SRD bridge pipe listener"
-            };
-            listenerThread.Start();
             Log.DevLog($"Bridge listener started on pipe '{PipeName}'.");
         }
 
         private static void StopListener()
         {
-            if (!isListening)
+            lock (ListenerLock)
             {
-                return;
+                if (!isListening)
+                {
+                    return;
+                }
+
+                shouldStop = true;
             }
 
-            shouldStop = true;
             WakeListener();
         }
 
@@ -132,8 +141,7 @@ namespace SerializeReferenceDropdownBridge.Bridge
                                 continue;
                             }
 
-                            var response = ExecuteCommandWithResponse(command);
-                            WriteResponse(command.replyPipe, response);
+                            DispatchCommand(command);
                         }
                     }
                 }
@@ -147,6 +155,20 @@ namespace SerializeReferenceDropdownBridge.Bridge
             }
 
             isListening = false;
+        }
+
+        private static void DispatchCommand(SrdBridgeCommand command)
+        {
+            var thread = new Thread(() =>
+            {
+                var response = ExecuteCommandWithResponse(command);
+                WriteResponse(command.replyPipe, response);
+            })
+            {
+                IsBackground = true,
+                Name = "SRD bridge command executor"
+            };
+            thread.Start();
         }
 
         private static string ReadCommand(Stream stream)
