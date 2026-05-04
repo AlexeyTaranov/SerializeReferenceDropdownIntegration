@@ -32,20 +32,25 @@ public class ToUnityWindowFocusSwitch
 
     public void SwitchToUnityApplication()
     {
+        diagnostics.Info($"SwitchToUnityApplication requested. Setting={sessionSettings.UnityWindowFocusSwitchSettings}.");
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX) &&
             !RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
+            diagnostics.Warn("Skip switching to Unity because current OS is not supported.");
             return;
         }
 
         switch (sessionSettings.UnityWindowFocusSwitchSettings)
         {
             case UnityWindowFocusSwitchSettings.AlwaysSwitch:
+                diagnostics.Info("Switching to Unity because setting is AlwaysSwitch.");
                 TrySwitchToUnityApplication();
                 return;
             case UnityWindowFocusSwitchSettings.NeverSwitch:
+                diagnostics.Warn("Skip switching to Unity because setting is NeverSwitch.");
                 return;
             default:
+                diagnostics.Info("Showing Switch to Unity dialog because setting is ShowPopup.");
                 ShowSwitchToUnityDialog();
                 return;
         }
@@ -57,10 +62,12 @@ public class ToUnityWindowFocusSwitch
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
+                diagnostics.Info("Trying to switch focus to Unity on macOS.");
                 SwitchToUnityOnMacOs();
                 return;
             }
 
+            diagnostics.Info("Trying to switch focus to Unity on Windows.");
             SwitchToUnityOnWindows();
         }
         catch (Exception e)

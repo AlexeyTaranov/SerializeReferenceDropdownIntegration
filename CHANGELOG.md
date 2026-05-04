@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2.0.2
+
+- Fixed opening Unity asset usages from Rider by serializing bridge commands and retrying transient pipe failures.
+- Added the project source link to the Rider plugin description.
+
 ## 2.0.1
 
 - Fixed Unity asmdef rename windows after namespace split by importing the bridge logging namespace.

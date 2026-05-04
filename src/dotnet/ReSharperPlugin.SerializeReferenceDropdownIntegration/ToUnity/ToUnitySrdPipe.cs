@@ -2,11 +2,14 @@ using System;
 using System.IO;
 using System.IO.Pipes;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using JetBrains.Application.Parts;
+using JetBrains.Application.Threading;
 using JetBrains.IDE.UI;
 using JetBrains.Lifetimes;
 using JetBrains.ProjectModel;
+using JetBrains.Threading;
 using JetBrains.Util;
 using ReSharperPlugin.SerializeReferenceDropdownIntegration.Infrastructure;
 
@@ -16,24 +19,31 @@ namespace ReSharperPlugin.SerializeReferenceDropdownIntegration.ToUnity;
 public class ToUnitySrdPipe
 {
     private const string PipeName = "SerializeReferenceDropdownIntegration";
-    private const int ConnectTimeoutMs = 1500;
+    private const int ConnectTimeoutMs = 2500;
     private const int ResponseTimeoutMs = 5000;
+    private const int MaxSendAttempts = 3;
+    private const int RetryDelayMs = 250;
     private const string ReplyPipePrefix = "srd.";
     private const string ShowSearchTypeWindowCommand = "ShowSearchTypeWindow";
     private const string OpenAssetCommand = "OpenAsset";
 
+    private readonly Lifetime lifetime;
+    private readonly IShellLocks shellLocks;
     private readonly PluginSessionSettings sessionSettings;
     private readonly PluginDiagnostics diagnostics;
     private readonly ToUnityWindowFocusSwitch windowFocusSwitch;
     private readonly UnityBridgePackageManifestDetector bridgePackageDetector;
     private readonly MissingUnityBridgePackageDialog missingBridgePackageDialog;
+    private readonly SemaphoreSlim commandSemaphore = new(1, 1);
     private bool searchWindowHintShown;
     private bool missingBridgePackageWarningShown;
 
-    public ToUnitySrdPipe(PluginSessionSettings sessionSettings, PluginDiagnostics diagnostics,
+    public ToUnitySrdPipe(Lifetime lifetime, IShellLocks shellLocks, PluginSessionSettings sessionSettings, PluginDiagnostics diagnostics,
         ToUnityWindowFocusSwitch windowFocusSwitch, UnityBridgePackageManifestDetector bridgePackageDetector,
-        IDialogHost dialogHost, Lifetime lifetime)
+        IDialogHost dialogHost)
     {
+        this.lifetime = lifetime;
+        this.shellLocks = shellLocks;
         this.sessionSettings = sessionSettings;
         this.diagnostics = diagnostics;
         this.windowFocusSwitch = windowFocusSwitch;
@@ -56,7 +66,7 @@ public class ToUnitySrdPipe
             return;
         }
 
-        Task.Run(() => SendCommandToPipeAndSwitchFocus(ShowSearchTypeWindowCommand, typeName, $"type '{typeName}'"));
+        Task.Run(() => SendCommandToPipeAndSwitchFocusAsync(ShowSearchTypeWindowCommand, typeName, $"type '{typeName}'"));
         
         if (searchWindowHintShown == false)
         {
@@ -67,6 +77,7 @@ public class ToUnitySrdPipe
 
     public void OpenUnityAsset(string relativeAssetPath)
     {
+        diagnostics.Info($"OpenUnityAsset requested for '{relativeAssetPath}'.");
         if (string.IsNullOrWhiteSpace(relativeAssetPath))
         {
             diagnostics.Warn("Skip opening Unity asset because asset path is empty.");
@@ -75,10 +86,12 @@ public class ToUnitySrdPipe
 
         if (!CanSendUnityBridgeCommand())
         {
+            diagnostics.Warn($"Skip opening Unity asset '{relativeAssetPath}' because Unity bridge command cannot be sent.");
             return;
         }
 
-        Task.Run(() => SendCommandToPipeAndSwitchFocus(OpenAssetCommand, relativeAssetPath,
+        diagnostics.Info($"Queue Unity bridge command '{OpenAssetCommand}' for asset '{relativeAssetPath}'.");
+        Task.Run(() => SendCommandToPipeAndSwitchFocusAsync(OpenAssetCommand, relativeAssetPath,
             $"asset '{relativeAssetPath}'"));
     }
 
@@ -99,16 +112,66 @@ public class ToUnitySrdPipe
         return false;
     }
 
-    private void SendCommandToPipeAndSwitchFocus(string commandName, string payload, string diagnosticTarget)
+    private async Task SendCommandToPipeAndSwitchFocusAsync(string commandName, string payload, string diagnosticTarget)
     {
-        var response = SendCommandToPipe(commandName, payload, diagnosticTarget);
-        if (response is { IsSuccess: true })
+        try
         {
-            windowFocusSwitch.SwitchToUnityApplication();
+            diagnostics.Info($"Start Unity bridge command '{commandName}' for {diagnosticTarget}.");
+            await commandSemaphore.WaitAsync();
+            ToUnityBridgeResponse response;
+            try
+            {
+                response = await SendCommandToPipeWithRetryAsync(commandName, payload, diagnosticTarget);
+            }
+            finally
+            {
+                commandSemaphore.Release();
+            }
+
+            if (response is { IsSuccess: true })
+            {
+                diagnostics.Info($"Unity bridge command '{commandName}' succeeded for {diagnosticTarget}; switching focus to Unity.");
+                await shellLocks.StartMainRead(lifetime, () => windowFocusSwitch.SwitchToUnityApplication());
+            }
+            else
+            {
+                diagnostics.Warn($"Unity bridge command '{commandName}' did not succeed for {diagnosticTarget}: {response?.Status}. {response?.Message}");
+            }
+        }
+        catch (Exception exception)
+        {
+            diagnostics.Error($"Failed to execute Unity bridge command for {diagnosticTarget}.", exception);
         }
     }
 
-    private ToUnityBridgeResponse SendCommandToPipe(string commandName, string payload, string diagnosticTarget)
+    private async Task<ToUnityBridgeResponse> SendCommandToPipeWithRetryAsync(string commandName, string payload,
+        string diagnosticTarget)
+    {
+        ToUnityBridgeResponse response = null;
+        for (var attempt = 1; attempt <= MaxSendAttempts; attempt++)
+        {
+            var isLastAttempt = attempt == MaxSendAttempts;
+            response = SendCommandToPipe(commandName, payload, diagnosticTarget, isLastAttempt);
+            if (response.Status != ToUnityBridgeResponseStatus.Timeout &&
+                response.Status != ToUnityBridgeResponseStatus.Error)
+            {
+                return response;
+            }
+
+            if (!isLastAttempt)
+            {
+                diagnostics.Warn(
+                    $"Unity bridge command for {diagnosticTarget} failed with {response.Status}; retrying attempt {attempt + 1}/{MaxSendAttempts}.");
+                await Task.Delay(RetryDelayMs);
+            }
+        }
+
+        return response ?? new ToUnityBridgeResponse(ToUnityBridgeResponseStatus.Error,
+            "Unity bridge command failed before receiving a response.");
+    }
+
+    private ToUnityBridgeResponse SendCommandToPipe(string commandName, string payload, string diagnosticTarget,
+        bool showErrorOnFailure)
     {
         var replyPipeName = ReplyPipePrefix + Guid.NewGuid().ToString("N").Substring(0, 12);
         var commandLine = ToUnityBridgeProtocol.BuildJsonCommandLine(commandName, payload, replyPipeName);
@@ -140,7 +203,8 @@ public class ToUnitySrdPipe
             diagnostics.Info($"Unity bridge response for {diagnosticTarget}: {response.Status}. {response.Message}");
             if (!response.IsSuccess)
             {
-                MessageBox.ShowError(response.Message, Names.SRDShort);
+                shellLocks.StartMainRead(lifetime, () => MessageBox.ShowError(response.Message, Names.SRDShort))
+                    .NoAwait();
             }
 
             return response;
@@ -149,8 +213,15 @@ public class ToUnitySrdPipe
         {
             diagnostics.Error($"Failed to send {diagnosticTarget} to Unity pipe '{PipeName}' with command '{commandLine.TrimEnd()}'.",
                 exception);
-            MessageBox.ShowError("Unable to contact the Unity SRD bridge. Make sure Unity is running and the SRD package is loaded.",
-                Names.SRDShort);
+            if (showErrorOnFailure)
+            {
+                shellLocks.StartMainRead(lifetime,
+                        () => MessageBox.ShowError(
+                            "Unable to contact the Unity SRD bridge. Make sure Unity is running and the SRD package is loaded.",
+                            Names.SRDShort))
+                    .NoAwait();
+            }
+
             return new ToUnityBridgeResponse(ToUnityBridgeResponseStatus.Error, exception.Message);
         }
     }

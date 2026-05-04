@@ -187,8 +187,7 @@ public class ClassUsageInsightsProvider : ICodeInsightsProvider
     private void ShowReferencesPreview(ISolution solution, UnityAssetUsagePreview preview, CodeInsightsClickInfo clickInfo)
     {
         var dialogHost = solution.GetComponent<IDialogHost>();
-        var popupHost = solution.GetComponent<IBePopupHost>();
-        var dialog = new UnityAssetUsagePreviewDialog(dialogHost, popupHost, lifetime, diagnostics, OpenAssetInUnity);
+        var dialog = new UnityAssetUsagePreviewDialog(dialogHost, lifetime, diagnostics, OpenAssetInUnity);
         dialog.Show(preview, clickInfo);
     }
 
