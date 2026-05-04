@@ -7,10 +7,9 @@ Rider plugin for Unity projects that use `SerializeReference`.
 ## Features
 
 - [Usage Count](#usage-count): Unity Serialize references counter.
-- [Rename YAML](#rename-yaml): rename class and namespace support for Unity YAML.
-- [MovedFrom Rename Helper](#movedfrom-rename-helper): optionally add Unity `MovedFrom` during class rename.
+- [Rename Refactoring](#rename-refactoring): rename class and namespace support for Unity YAML.
 - [[Unity Package] Unity Bridge](#unity-package-unity-bridge): open assets and connect Unity with Rider.
-- [[Unity Package] Asmdef Tools](#unity-package-asmdef-tools): Asmdef rename and SerializeReference `asm` retargeting.
+- [[Unity Package] Asmdef Rename Tools](#unity-package-asmdef-tools): Asmdef rename and SerializeReference `asm` retargeting.
 - [Settings](#settings): persistent Rider settings for plugin behavior.
 
 ## Install
@@ -34,30 +33,27 @@ The bridge starts automatically when Unity loads the package.
 
 ## Usage Count
 
-The plugin adds an `SRD` Code Vision entry above supported Unity C# classes. It counts matching `SerializeReference` entries in Unity YAML assets.
+<img width="826" height="463" alt="Screenshot 2026-05-04 at 20 40 02" src="https://github.com/user-attachments/assets/547357df-e130-44e7-adcd-67cc6c7393d1" />
 
-![Usage Count](https://github.com/user-attachments/assets/e60d8c04-5dc9-4d14-b847-d8157b939d45)
+## Rename Refactoring
 
-## Rename YAML
+https://github.com/user-attachments/assets/e4d34262-80ad-4c8d-a23a-843da0031ed4
 
-During class or namespace rename, the plugin can scan Unity YAML assets and update matching `SerializeReference` type data.
-
-![Rename YAML Updates](https://github.com/user-attachments/assets/3da99091-0787-4b70-ae32-42140a0f469e)
+You can add MovedFrom attribute too!
 
 !!! Use VCS before applying YAML edits. Rider undo for saved Unity YAML files is not guaranteed yet. !!!
 
-## MovedFrom Rename Helper
-
-The plugin can add `UnityEngine.Scripting.APIUpdating.MovedFromAttribute`.
-
-![MovedFrom Rename Helper](https://github.com/user-attachments/assets/aae2dd53-977a-4138-9f4a-ca80e02ce6f1)
-
 ## [Unity Package] Unity Bridge
+
+https://github.com/user-attachments/assets/f7493c69-d642-408c-9fcf-7cff2e22789d
 
 ## [Unity Package] Asmdef Tools
 
-The Unity package adds `Serialize Reference Dropdown Tools` to the inspector for `.asmdef` assets.
+https://github.com/user-attachments/assets/fd157311-db4e-48a5-8835-6767f5cf8f01
 
 ## Settings
 
 Open `Settings | Tools | Serialize Reference Dropdown`.
+
+<img width="980" height="723" alt="image" src="https://github.com/user-attachments/assets/503eb07a-1ea0-4d5e-be35-6e59b7894021" />
+
